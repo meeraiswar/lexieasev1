@@ -18,6 +18,12 @@ const computeReward = ({ correct, responseTimeMs }) => {
 export const getNextLetter = async (req, res) => {
   const studentId = req.user._id;
 
+   // Deactivate any previously active letter
+  await LetterState.updateMany(
+    { studentId, isActive: true },
+    { isActive: false }
+  );
+  
   // Ensure state exists for all letters (cold start)
   await Promise.all(
     LETTERS.map((letter) =>
@@ -41,6 +47,9 @@ export const getNextLetter = async (req, res) => {
   else {
     chosen = states.reduce((a, b) => (a.avgReward < b.avgReward ? a : b));
   }
+
+  chosen.isActive = true;
+  await chosen.save();
 
   res.json({ letter: chosen.letter });
 };
@@ -108,11 +117,15 @@ export const logLetterAttempt = async (req, res) => {
 
     const reward = computeReward({ correct, responseTimeMs });
 
-    const state = await LetterState.findOne({ studentId, letter });
+    const state = await LetterState.findOne({
+      studentId,
+      letter,
+      isActive: true,
+    });
     if (!state) {
       return res.status(404).json({ 
         success: false,
-        error: "Letter state not found",
+        error: "Attempt does not match the active letter or replayed the current active letter.",
       });
     }
 
@@ -120,6 +133,7 @@ export const logLetterAttempt = async (req, res) => {
     state.totalReward += reward;
     state.avgReward = state.totalReward / state.pulls;
 
+    state.isActive = false;
     await state.save();
 
     res.json({
