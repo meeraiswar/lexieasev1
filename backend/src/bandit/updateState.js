@@ -1,4 +1,4 @@
-export function updateBanditState(state, reward) {
+export async function updateBanditState(state, reward) {
   if (typeof reward !== "number") {
     throw new Error("Reward must be a number");
   }

@@ -122,7 +122,7 @@ export const logLetterAttempt = async (req, res) => {
       });
     }
 
-    updateBanditState(state, reward);
+    await updateBanditState(state, reward);
 
     state.isActive = false;
     await state.save();
