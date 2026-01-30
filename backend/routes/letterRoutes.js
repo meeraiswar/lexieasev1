@@ -4,7 +4,7 @@ import upload from "../middleware/upload.js";
 import {
   getNextLetter,
   geminiLetterAttempt,
-} from "../controllers/GeminiLetter.js";
+} from "../controllers/Geminiletter.js";
 
 const router = express.Router();
 
