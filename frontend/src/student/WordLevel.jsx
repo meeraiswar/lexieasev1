@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "../api/api";
+import { startFaceMesh, stopFaceMesh } from "../utils/faceMeshService";
 
 export default function WordLevel() {
   const [word, setWord] = useState(null);
@@ -11,12 +12,48 @@ export default function WordLevel() {
 
   const recognitionRef = useRef(null);
   const spokenRef = useRef("");
+  const videoRef = useRef(null);
+  const faceMetricsRef = useRef({
+    blinkCount: 0,
+    eyeClosureMax: 0,
+    samples: 0,
+  });
+
+  useEffect(() => {
+  console.log("Word changed:", word);
+
+  if (!word || !videoRef.current) {
+    console.log("Video is not ready yet");
+    return;
+  }  
+  console.log("Starting FaceMesh (once)");
+
+  startFaceMesh(videoRef, faceMetricsRef);
+
+  return () => {
+    console.log("Stopping FaceMesh (unmount)");
+    stopFaceMesh();
+  };
+}, [videoRef.current]);
+
+  useEffect(() => {
+    if (!word) return;
+
+    faceMetricsRef.current = {
+      blinkCount: 0,
+      eyeClosureMin: 1,
+      samples: 0,
+    };
+  }, [word]);
+
+
   
   /* =========================
      Load next word
   ========================== */
   const loadWord = async () => {
     const res = await apiFetch("/api/words/next");
+    console.log("Loaded word: ", res.word);
     setWord(res.word);
     setWordId(res.wordId);
     setFeedback(null);
@@ -82,10 +119,14 @@ export default function WordLevel() {
     recognitionRef.current.stop();
     setIsRecording(false);
 
+    console.log("Face metrics: ", faceMetricsRef.current);
+
     const currentWordId = wordId;
     const currentWord = word;
     const currentSpoken = spokenRef.current;
     const currentShownAt = shownAt;
+    const faceMetrics = faceMetricsRef.current;
+    const visualEffortScore = faceMetrics.eyeClosureMax > 0.02 || faceMetrics.blinkCount > 5;
 
     if (!currentSpoken) {
       alert("Speech not captured. Please try again.");
@@ -101,6 +142,10 @@ export default function WordLevel() {
         expected: currentWord,
         spoken: currentSpoken,
         responseTimeMs,
+
+        // OPTIONAL (for now)
+        visualEffort: visualEffortScore,
+        blinkCount: faceMetrics.blinkCount,
       }),
     });
 
@@ -118,6 +163,15 @@ export default function WordLevel() {
 
   return (
     <div style={{ textAlign: "center", marginTop: 40 }}>
+      
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        style={{ display: "none" }}
+      /> 
+
       <h2>Say the word aloud</h2>
 
       <h1 style={{ margin: "30px 0", fontSize: 60 }}>{word}</h1>
