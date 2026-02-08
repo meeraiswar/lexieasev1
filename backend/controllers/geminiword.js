@@ -1,7 +1,125 @@
 import { initializeAI } from "./Geminiletter.js";
 import WordState from "../models/WordState.js";
 import LetterState from "../models/LetterState.js";
+import { selectNextState } from "../src/bandit/selectNext.js";
 import { updateBanditState } from "../src/bandit/updateState.js";
+import { WORDS } from "../data/words.js";
+
+// Chooses the next word based on the student's weakest letters (2–3)
+export const getNextWord = async (req, res) => {
+  try {
+    const studentId = req.user._id;
+    
+    // Get weakest letters
+    const weakLetterStates = await LetterState.find({ studentId })
+      .sort({ avgReward: 1 }) // lowest = hardest
+      .limit(3);
+
+    let weakLetters = weakLetterStates.map(ls => ls.letter);
+
+    // Fallback for new users
+    if (weakLetters.length === 0) {
+      weakLetters = ["a", "e", "i"];
+    }
+
+    // Score words
+    const scoreWord = (wordText, letters) => {
+      const text = wordText.toLowerCase();
+      let score = 0;
+
+      for (const letter of letters) {
+        score += text.split(letter).length - 1;
+      }
+
+      return score;
+    };
+
+    const rankedWords = WORDS
+      .map(w => ({
+        ...w,
+        score: scoreWord(w.text, weakLetters),
+      }))
+      .filter(w => w.score > 0);
+
+    // Fallback: if no word stresses weak letters
+    const finalWords =
+      rankedWords.length > 0
+        ? rankedWords
+        : WORDS.map(w => ({ ...w, score: 1 }));
+
+    // Ensure WordState exists
+    await Promise.all(
+      finalWords.map(word =>
+        WordState.findOneAndUpdate(
+          { studentId, wordId: word.id },
+          {},
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        )
+      )
+    );
+
+    // Fetch candidate states
+    const candidateStates = await WordState.find({
+      studentId,
+      wordId: { $in: finalWords.map(w => w.id) },
+    });
+
+    if (candidateStates.length === 0) {
+      return res.status(500).json({
+        success: false,
+        error: "No word states available",
+      });
+    }
+
+    const RECENT_WINDOW_MS = 30 * 1000; // 30 seconds
+
+    const now = Date.now();
+
+    const filteredStates = candidateStates.filter(state => {
+      if (!state.lastShownAt) return true;
+      return now - new Date(state.lastShownAt).getTime() > RECENT_WINDOW_MS;
+    });
+
+    // fallback if all filtered out
+    const selectionPool =
+      filteredStates.length > 0 ? filteredStates : candidateStates;
+
+    const chosenState = selectNextState(selectionPool);
+    // BEFORE activating chosenState
+    await WordState.updateMany(
+      {
+        studentId,
+        isActive: true,
+        wordId: { $ne: chosenState.wordId },
+      },
+      { isActive: false }
+    );
+
+    // Bandit selection
+    chosenState.isActive = true;
+    chosenState.lastShownAt = new Date();
+    await chosenState.save();
+
+    // Return word
+    const chosenWord = WORDS.find(
+      w => w.id === chosenState.wordId
+    );
+
+    return res.json({
+      success: true,
+      wordId: chosenWord.id,
+      word: chosenWord.text,
+      targetLetters: weakLetters,
+    });
+
+  } catch (err) {
+    console.error("getNextWord error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
+  }
+};
 
 export const geminiWordAttempt = async (req, res) => {
   try {
