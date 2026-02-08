@@ -6,10 +6,15 @@ export default function Login({ onLogin }) {
   const [password, setPassword] = useState("");
 
   const submit = async () => {
-    const res = await apiFetch("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
+    const res = await apiFetch("http://localhost:5001/api/auth/login", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify(formData),
+  credentials: "include", // REQUIRED
+});
+
 
     if (res.role) {
       onLogin(res);

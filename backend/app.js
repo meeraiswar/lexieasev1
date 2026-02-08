@@ -33,4 +33,7 @@ app.use("/api/letters", letterRoutes);
 app.use("/api/sentences", sentenceRoutes);
 app.use("/api/words", wordRoutes);
 
+app.listen(5001, () => {
+  console.log("Server running on port 5001");
+});
 export default app;
