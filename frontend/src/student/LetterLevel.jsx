@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { apiFetch } from "../api/api";
 
 export default function LetterLevelGemini() {
   const [letter, setLetter] = useState("");
@@ -9,8 +10,6 @@ export default function LetterLevelGemini() {
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
-
-  const token = localStorage.getItem("token");
 
   /* =========================
      Check browser support
@@ -27,19 +26,19 @@ export default function LetterLevelGemini() {
   ========================== */
   const fetchNextLetter = async () => {
     try {
-      const res = await fetch("http://localhost:5001/api/letters/next", {
-        headers: {
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-      });
+      const data = await apiFetch("/api/letters/next");
 
-      const data = await res.json();
+      if (!data?.letter) {
+        throw new Error("No letter returned");
+      }
+
       setLetter(data.letter.toUpperCase());
       setScore(null);
       setStatus("");
     } catch (err) {
-      console.error(err);
+      console.error("fetchNextLetter error:", err);
       setStatus("❌ Could not load next letter");
+      setLetter("");
     }
   };
 
@@ -112,14 +111,16 @@ export default function LetterLevelGemini() {
 
       const res = await fetch("http://localhost:5001/api/letters/attempt", {
         method: "POST",
-        headers: {
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
         body: formData,
+        credentials: "include", // 🔑 REQUIRED
       });
 
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Attempt failed");
+      }
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
 
       setScore(data.score);
       setStatus(data.message);
@@ -130,7 +131,6 @@ export default function LetterLevelGemini() {
         `Expected: ${letter}, Heard: ${data.transcript}, Score: ${data.score}`
       );
 
-      // 🔑 Bandit controls next letter
       setTimeout(fetchNextLetter, 1200);
     } catch (err) {
       console.error(err);
@@ -140,16 +140,19 @@ export default function LetterLevelGemini() {
   };
 
   /* =========================
-     Speech feedback (OLD STYLE)
+     Speech feedback
   ========================== */
   const speakFeedback = (score) => {
     if (!("speechSynthesis" in window)) return;
 
-    let text = "";
-    if (score >= 90) text = "Excellent work! Congratulations.";
-    else if (score >= 75) text = "Well done. You are very close.";
-    else if (score >= 55) text = "Good effort. Relax and try again.";
-    else text = "Don't worry. Take your time and keep trying.";
+    let text =
+      score >= 90
+        ? "Excellent work! Congratulations."
+        : score >= 75
+        ? "Well done. You are very close."
+        : score >= 55
+        ? "Good effort. Relax and try again."
+        : "Don't worry. Take your time and keep trying.";
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
@@ -205,23 +208,13 @@ export default function LetterLevelGemini() {
             </p>
           </div>
         )}
-
-        <div style={styles.tips}>
-          <h4 style={styles.tipsTitle}>💡 Tips for better recognition:</h4>
-          <ul style={styles.tipsList}>
-            <li>Speak clearly and at normal volume</li>
-            <li>Say just the letter name (e.g., "Ay" for A)</li>
-            <li>Reduce background noise</li>
-            <li>Allow microphone access</li>
-          </ul>
-        </div>
       </div>
     </div>
   );
 }
 
 /* =========================
-   Styles (UNCHANGED)
+   Styles (unchanged)
 ========================== */
 const styles = {
   container: {
@@ -287,20 +280,5 @@ const styles = {
   score: {
     fontSize: "36px",
     fontWeight: "bold",
-  },
-  tips: {
-    marginTop: "30px",
-    padding: "20px",
-    backgroundColor: "#f9fafb",
-    borderRadius: "8px",
-  },
-  tipsTitle: {
-    fontSize: "16px",
-    fontWeight: "600",
-    marginBottom: "10px",
-  },
-  tipsList: {
-    fontSize: "14px",
-    paddingLeft: "20px",
   },
 };

@@ -53,7 +53,7 @@ import Dashboard from "./student/Dashboard";
 
 import LetterLevel from "./student/LetterLevel";
 import WordLevel from "./student/WordLevel";
-import SentenceLevel from "./student/SentenceLevel";
+import SentenceLevel from "./student/SentenceLevel.jsx";
 
 /* ================= Protected Route ================= */
 function ProtectedRoute({ children, allowedRoles }) {
