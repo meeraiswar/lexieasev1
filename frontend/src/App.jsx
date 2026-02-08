@@ -47,14 +47,15 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 
-
-import LetterLevel from "./student/LetterLevel";
-//import WordLevel from "./student/WordLevel";
-import SentenceLevel from "./student/SentenceLevel";
 import StudentLayout from "./student/StudentLayout";
 import Toggle from "./student/Toggle";
 import Dashboard from "./student/Dashboard";
-// Protected Route Component
+
+import LetterLevel from "./student/LetterLevel";
+import WordLevel from "./student/WordLevel";
+import SentenceLevel from "./student/SentenceLevel";
+
+/* ================= Protected Route ================= */
 function ProtectedRoute({ children, allowedRoles }) {
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
@@ -69,16 +70,18 @@ function ProtectedRoute({ children, allowedRoles }) {
   return children;
 }
 
+/* ================= App ================= */
 function App() {
   return (
     <Routes>
-      {/* ================= Public Routes ================= */}
-       <Route element={<PublicLayout />}>
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-        </Route>
-      {/* ================= Student Routes ================= */}
+      {/* -------- Public Routes -------- */}
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+      </Route>
+
+      {/* -------- Student Routes -------- */}
       <Route
         path="/student"
         element={
@@ -87,61 +90,61 @@ function App() {
           </ProtectedRoute>
         }
       >
+        {/* student home */}
+        <Route index element={<Toggle />} />
 
-<Route index element={<Toggle />} />
-  <Route path="toggle" element={<Toggle />} />
-          <Route index element={<Dashboard />} />
-  <Route path="dashboard" element={<Dashboard />} />
+        {/* dashboard */}
+        <Route path="dashboard" element={<Dashboard />} />
+
+        {/* learning levels (same logic as upstream, just routed) */}
         <Route path="letter-level" element={<LetterLevel />} />
-      
+        <Route path="word-level" element={<WordLevel />} />
         <Route path="sentence-level" element={<SentenceLevel />} />
-       
-        {/* Default student redirect */}
-        <Route index element={<Navigate to="letter-level" replace />} />
       </Route>
 
-      {/* ================= Teacher Routes ================= */}
+      {/* -------- Teacher -------- */}
       <Route
         path="/teacher/dashboard"
         element={
           <ProtectedRoute allowedRoles={["teacher"]}>
-            <div style={placeholderStyle}>
-              <h1>Teacher Dashboard</h1>
-              <p>Coming Soon</p>
-            </div>
+            <Placeholder title="Teacher Dashboard" />
           </ProtectedRoute>
         }
       />
 
-      {/* ================= Parent Routes ================= */}
+      {/* -------- Parent -------- */}
       <Route
         path="/parent/dashboard"
         element={
           <ProtectedRoute allowedRoles={["parent"]}>
-            <div style={placeholderStyle}>
-              <h1>Parent Dashboard</h1>
-              <p>Coming Soon</p>
-            </div>
+            <Placeholder title="Parent Dashboard" />
           </ProtectedRoute>
         }
       />
 
-      {/* ================= Admin Routes ================= */}
+      {/* -------- Admin -------- */}
       <Route
         path="/admin/dashboard"
         element={
           <ProtectedRoute allowedRoles={["admin"]}>
-            <div style={placeholderStyle}>
-              <h1>Admin Dashboard</h1>
-              <p>Coming Soon</p>
-            </div>
+            <Placeholder title="Admin Dashboard" />
           </ProtectedRoute>
         }
       />
 
-      {/* Catch-all */}
+      {/* -------- Catch All -------- */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+  );
+}
+
+/* ================= Placeholder ================= */
+function Placeholder({ title }) {
+  return (
+    <div style={placeholderStyle}>
+      <h1>{title}</h1>
+      <p>Coming Soon</p>
+    </div>
   );
 }
 
@@ -151,7 +154,9 @@ const placeholderStyle = {
   flexDirection: "column",
   justifyContent: "center",
   alignItems: "center",
-  fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
+  fontFamily:
+    '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
 };
 
 export default App;
+

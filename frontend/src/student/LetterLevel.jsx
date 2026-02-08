@@ -1,23 +1,57 @@
 import React, { useState, useRef, useEffect } from "react";
 
 export default function LetterLevelGemini() {
-  const [letter, setLetter] = useState("A");
+  const [letter, setLetter] = useState("");
   const [status, setStatus] = useState("");
   const [score, setScore] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
-  
+
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
+  const token = localStorage.getItem("token");
+
+  /* =========================
+     Check browser support
+  ========================== */
   useEffect(() => {
-    // Check if MediaRecorder is supported
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setIsSupported(false);
       setStatus("❌ Microphone recording not supported in this browser.");
     }
   }, []);
 
+  /* =========================
+     Fetch next letter (Bandit)
+  ========================== */
+  const fetchNextLetter = async () => {
+    try {
+      const res = await fetch("http://localhost:5001/api/letters/next", {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      });
+
+      const data = await res.json();
+      setLetter(data.letter.toUpperCase());
+      setScore(null);
+      setStatus("");
+    } catch (err) {
+      console.error("Failed to fetch next letter:", err);
+      setStatus("❌ Could not load next letter");
+    }
+  };
+
+  useEffect(() => {
+    fetchNextLetter();
+  }, []);
+
+  /* =========================
+     Recording logic
+  ========================== */
   const startRecording = async () => {
     if (!isSupported) {
       setStatus("❌ Recording not supported");
@@ -27,20 +61,19 @@ export default function LetterLevelGemini() {
     try {
       setScore(null);
       setStatus("🎤 Starting microphone...");
-      
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          sampleRate: 16000
-        } 
+          sampleRate: 16000,
+        },
       });
 
-      // Use webm format if supported, otherwise use default
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') 
-        ? 'audio/webm' 
-        : 'audio/ogg';
-      
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/ogg";
+
       mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
 
@@ -52,7 +85,7 @@ export default function LetterLevelGemini() {
 
       mediaRecorderRef.current.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
         await submitAudio(audioBlob);
       };
 
@@ -60,59 +93,60 @@ export default function LetterLevelGemini() {
       setIsRecording(true);
       setStatus("🎤 Listening... Say the letter clearly");
 
-      // Auto-stop after 3 seconds
       setTimeout(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        if (
+          mediaRecorderRef.current &&
+          mediaRecorderRef.current.state === "recording"
+        ) {
           stopRecording();
         }
       }, 3000);
-
     } catch (error) {
       console.error("Microphone error:", error);
       setIsRecording(false);
-      if (error.name === 'NotAllowedError') {
-        setStatus("❌ Microphone access denied. Please allow microphone access.");
-      } else {
-        setStatus(`❌ Error: ${error.message}`);
-      }
+      setStatus("❌ Microphone access error");
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state === "recording"
+    ) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
   };
 
+  /* =========================
+     Submit audio → Gemini → Bandit
+  ========================== */
   const submitAudio = async (audioBlob) => {
     try {
       setStatus("⏳ Processing with Gemini AI...");
-      
-      const token = localStorage.getItem("token");
-      
-      // Create FormData to send audio file
+
       const formData = new FormData();
-      formData.append("letter", letter);
+      formData.append("letter", letter.toLowerCase());
       formData.append("audio", audioBlob, "recording.webm");
 
-      const res = await fetch("http://localhost:5001/api/letters/gemini-letter", {
+      const res = await fetch("http://localhost:5001/api/letters/attempt", {
         method: "POST",
+        credentials: "include",
         headers: {
-          ...(token && { Authorization: `Bearer ${token}` })
+          ...(token && { Authorization: `Bearer ${token}` }),
         },
         body: formData,
-        credentials: "include",
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || `HTTP ${res.status}`);
+        throw new Error(data.message || "Letter evaluation failed");
       }
 
-      const data = await res.json();
       setScore(data.score);
       setStatus(data.message);
+<<<<<<< HEAD
       
               if (data.score >= 90) {
           speakFeedback("Excellent work! Congratulations.");
@@ -127,13 +161,21 @@ export default function LetterLevelGemini() {
       // Show what was heard
       console.log(`Expected: ${letter}, Heard: ${data.transcript}, Score: ${data.score}`);
       
+=======
+
+      // Load next adaptive letter after short delay
+      setTimeout(() => {
+        fetchNextLetter();
+      }, 1200);
+>>>>>>> upstream/main
     } catch (error) {
       console.error("Submit error:", error);
-      setStatus(`❌ Error: ${error.message}`);
+      setStatus(`❌ ${error.message}`);
       setScore(null);
     }
   };
 
+<<<<<<< HEAD
   const nextLetter = () => {
     const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     const currentIndex = letters.indexOf(letter);
@@ -178,66 +220,56 @@ export default function LetterLevelGemini() {
         <div style={styles.letterDisplay}>
           {letter}
         </div>
+=======
+  /* =========================
+     Render (UNCHANGED UI)
+  ========================== */
+  return (
+    <div style={styles.container}>
+      <div style={styles.card}>
+        <h2 style={styles.title}>🔤 Letter Pronunciation Practice</h2>
+        <div style={styles.badge}>Powered by Gemini AI ✨</div>
+
+        <div style={styles.letterDisplay}>{letter || "…"}</div>
+>>>>>>> upstream/main
 
         <div style={styles.instructions}>
-          Click the microphone and clearly say: <strong>"{letter}"</strong>
+          Click the microphone and clearly say:{" "}
+          <strong>"{letter}"</strong>
         </div>
 
         <div style={styles.buttonContainer}>
-          <button 
-            onClick={isRecording ? stopRecording : startRecording} 
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
             disabled={!isSupported}
             style={{
               ...styles.recordButton,
               opacity: !isSupported ? 0.6 : 1,
               cursor: !isSupported ? "not-allowed" : "pointer",
-              backgroundColor: isRecording ? "#ef4444" : "#3b82f6"
+              backgroundColor: isRecording ? "#ef4444" : "#3b82f6",
             }}
           >
             {isRecording ? "🔴 Stop (3s max)" : "🎤 Speak"}
           </button>
-          
-          <button 
-            onClick={nextLetter} 
-            style={styles.nextButton}
-            title="Next letter in sequence"
-          >
-            ➡️ Next
-          </button>
-          
-          <button 
-            onClick={randomLetter} 
-            style={styles.randomButton}
-            title="Random letter"
-          >
-            🔄 Random
-          </button>
         </div>
 
-        {status && (
-          <p style={styles.status}>{status}</p>
-        )}
-        
+        {status && <p style={styles.status}>{status}</p>}
+
         {score !== null && (
-          <div style={{
-            ...styles.scoreContainer,
-            backgroundColor: score >= 80 ? "#d1fae5" : "#fee2e2"
-          }}>
-            <p style={{
-              ...styles.score,
-              color: score >= 80 ? "#059669" : "#dc2626"
-            }}>
+          <div
+            style={{
+              ...styles.scoreContainer,
+              backgroundColor: score >= 80 ? "#d1fae5" : "#fee2e2",
+            }}
+          >
+            <p
+              style={{
+                ...styles.score,
+                color: score >= 80 ? "#059669" : "#dc2626",
+              }}
+            >
               Score: {score}/100
             </p>
-            {score >= 90 ? (
-              <p style={styles.feedback}>🎉 Excellent!</p>
-            ) : score >= 70 ? (
-              <p style={styles.feedback}>👍 Good job!</p>
-            ) : score >= 50 ? (
-              <p style={styles.feedback}>🔄 Keep trying!</p>
-            ) : (
-              <p style={styles.feedback}>💪 Try again!</p>
-            )}
           </div>
         )}
 
@@ -245,14 +277,16 @@ export default function LetterLevelGemini() {
           <h4 style={styles.tipsTitle}>💡 Tips for better recognition:</h4>
           <ul style={styles.tipsList}>
             <li>Speak clearly and at normal volume</li>
-            <li>Say just the letter name (e.g., "Ay" for A, "Bee" for B)</li>
+            <li>Say just the letter name (e.g., "Ay" for A)</li>
             <li>Reduce background noise</li>
-            <li>Allow microphone access when prompted</li>
-            <li>Recording auto-stops after 3 seconds</li>
+            <li>Allow microphone access</li>
           </ul>
         </div>
+<<<<<<< HEAD
 
        
+=======
+>>>>>>> upstream/main
       </div>
     </div>
   );
