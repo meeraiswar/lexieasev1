@@ -2,6 +2,38 @@ import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "../api/api";
 import { startFaceMesh, stopFaceMesh } from "../utils/faceMeshService";
 
+function computeVisionDifficulty(metrics) {
+  const { samples, blinkCount, eyeClosureMin } = metrics;
+
+  if (samples < 60) {
+    return { usable: false, isHard: false, score: 0 };
+  }
+
+  let score = 0;
+
+  // VERY strong signal: deep eye closure
+  if (eyeClosureMin < 0.009) {
+    score += 0.7;
+  }
+
+  // Moderate signal: noticeable closure
+  else if (eyeClosureMin < 0.011) {
+    score += 0.4;
+  }
+
+  // Weak signal: blink instability (supporting only)
+  if (blinkCount >= 4) {
+    score += 0.2;
+  }
+
+  return {
+    usable: true,
+    isHard: score >= 0.6,
+    score: Math.min(score, 1),
+  };
+}
+
+
 export default function WordLevel() {
   const [word, setWord] = useState(null);
   const [wordId, setWordId] = useState(null);
@@ -15,7 +47,7 @@ export default function WordLevel() {
   const videoRef = useRef(null);
   const faceMetricsRef = useRef({
     blinkCount: 0,
-    eyeClosureMax: 0,
+    eyeClosureMin: 0,
     samples: 0,
   });
 
@@ -126,7 +158,8 @@ export default function WordLevel() {
     const currentSpoken = spokenRef.current;
     const currentShownAt = shownAt;
     const faceMetrics = faceMetricsRef.current;
-    const visualEffortScore = faceMetrics.eyeClosureMax > 0.02 || faceMetrics.blinkCount > 5;
+    const visionResult = computeVisionDifficulty(faceMetrics);
+    console.log("Vision difficulty: ", visionResult);
 
     if (!currentSpoken) {
       alert("Speech not captured. Please try again.");
@@ -144,7 +177,7 @@ export default function WordLevel() {
         responseTimeMs,
 
         // OPTIONAL (for now)
-        visualEffort: visualEffortScore,
+        //visualEffort: visualEffortScore,
         blinkCount: faceMetrics.blinkCount,
       }),
     });
