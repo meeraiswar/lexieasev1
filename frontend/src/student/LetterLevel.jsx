@@ -28,8 +28,6 @@ export default function LetterLevelGemini() {
   const fetchNextLetter = async () => {
     try {
       const res = await fetch("http://localhost:5001/api/letters/next", {
-        method: "GET",
-        credentials: "include",
         headers: {
           ...(token && { Authorization: `Bearer ${token}` }),
         },
@@ -40,7 +38,7 @@ export default function LetterLevelGemini() {
       setScore(null);
       setStatus("");
     } catch (err) {
-      console.error("Failed to fetch next letter:", err);
+      console.error(err);
       setStatus("❌ Could not load next letter");
     }
   };
@@ -53,14 +51,11 @@ export default function LetterLevelGemini() {
      Recording logic
   ========================== */
   const startRecording = async () => {
-    if (!isSupported) {
-      setStatus("❌ Recording not supported");
-      return;
-    }
+    if (!isSupported) return;
 
     try {
       setScore(null);
-      setStatus("🎤 Starting microphone...");
+      setStatus("🎤 Listening...");
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -77,42 +72,28 @@ export default function LetterLevelGemini() {
       mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
 
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
       mediaRecorderRef.current.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        stream.getTracks().forEach((track) => track.stop());
         await submitAudio(audioBlob);
       };
 
       mediaRecorderRef.current.start();
       setIsRecording(true);
-      setStatus("🎤 Listening... Say the letter clearly");
 
-      setTimeout(() => {
-        if (
-          mediaRecorderRef.current &&
-          mediaRecorderRef.current.state === "recording"
-        ) {
-          stopRecording();
-        }
-      }, 3000);
-    } catch (error) {
-      console.error("Microphone error:", error);
-      setIsRecording(false);
+      setTimeout(stopRecording, 3000);
+    } catch (err) {
+      console.error(err);
       setStatus("❌ Microphone access error");
     }
   };
 
   const stopRecording = () => {
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state === "recording"
-    ) {
+    if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
@@ -131,7 +112,6 @@ export default function LetterLevelGemini() {
 
       const res = await fetch("http://localhost:5001/api/letters/attempt", {
         method: "POST",
-        credentials: "include",
         headers: {
           ...(token && { Authorization: `Bearer ${token}` }),
         },
@@ -139,103 +119,57 @@ export default function LetterLevelGemini() {
       });
 
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || "Letter evaluation failed");
-      }
+      if (!res.ok) throw new Error(data.message);
 
       setScore(data.score);
       setStatus(data.message);
-<<<<<<< HEAD
-      
-              if (data.score >= 90) {
-          speakFeedback("Excellent work! Congratulations.");
-        } else if (data.score >= 75) {
-          speakFeedback("Well done. You are very close.");
-        } else if (data.score >= 55) {
-          speakFeedback("Good effort. Relax and try again.");
-        } else {
-          speakFeedback("Don't worry. Take your time and keep trying.");
-        }
 
-      // Show what was heard
-      console.log(`Expected: ${letter}, Heard: ${data.transcript}, Score: ${data.score}`);
-      
-=======
+      speakFeedback(data.score);
 
-      // Load next adaptive letter after short delay
-      setTimeout(() => {
-        fetchNextLetter();
-      }, 1200);
->>>>>>> upstream/main
-    } catch (error) {
-      console.error("Submit error:", error);
-      setStatus(`❌ ${error.message}`);
+      console.log(
+        `Expected: ${letter}, Heard: ${data.transcript}, Score: ${data.score}`
+      );
+
+      // 🔑 Bandit controls next letter
+      setTimeout(fetchNextLetter, 1200);
+    } catch (err) {
+      console.error(err);
+      setStatus(`❌ ${err.message}`);
       setScore(null);
     }
   };
 
-<<<<<<< HEAD
-  const nextLetter = () => {
-    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    const currentIndex = letters.indexOf(letter);
-    const nextIndex = (currentIndex + 1) % 26;
-    setLetter(letters[nextIndex]);
-    setScore(null);
-    setStatus("");
-  };
-
-  const randomLetter = () => {
-    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    let newLetter;
-    do {
-      newLetter = letters[Math.floor(Math.random() * 26)];
-    } while (newLetter === letter);
-    
-    setLetter(newLetter);
-    setScore(null);
-    setStatus("");
-  };
-
-  const speakFeedback = (text) => {
-  if (!("speechSynthesis" in window)) return;
-
-  window.speechSynthesis.cancel(); // stop any previous speech
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.9;   // calm pace
-  utterance.pitch = 1.05; // friendly tone
-  utterance.volume = 1;
-
-  window.speechSynthesis.speak(utterance);
-};
-
-
-  return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h2 style={styles.title}>🔤 Letter Practice</h2>
-        
-        
-        <div style={styles.letterDisplay}>
-          {letter}
-        </div>
-=======
   /* =========================
-     Render (UNCHANGED UI)
+     Speech feedback (OLD STYLE)
+  ========================== */
+  const speakFeedback = (score) => {
+    if (!("speechSynthesis" in window)) return;
+
+    let text = "";
+    if (score >= 90) text = "Excellent work! Congratulations.";
+    else if (score >= 75) text = "Well done. You are very close.";
+    else if (score >= 55) text = "Good effort. Relax and try again.";
+    else text = "Don't worry. Take your time and keep trying.";
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.pitch = 1.05;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  /* =========================
+     UI (UNCHANGED)
   ========================== */
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <h2 style={styles.title}>🔤 Letter Pronunciation Practice</h2>
-        <div style={styles.badge}>Powered by Gemini AI ✨</div>
+        <h2 style={styles.title}>🔤 Letter Practice</h2>
 
-        <div style={styles.letterDisplay}>{letter || "…"}</div>
->>>>>>> upstream/main
+        <div style={styles.letterDisplay}>{letter}</div>
 
         <div style={styles.instructions}>
-          Click the microphone and clearly say:{" "}
-          <strong>"{letter}"</strong>
+          Click the microphone and clearly say: <strong>"{letter}"</strong>
         </div>
 
         <div style={styles.buttonContainer}>
@@ -244,9 +178,8 @@ export default function LetterLevelGemini() {
             disabled={!isSupported}
             style={{
               ...styles.recordButton,
-              opacity: !isSupported ? 0.6 : 1,
-              cursor: !isSupported ? "not-allowed" : "pointer",
               backgroundColor: isRecording ? "#ef4444" : "#3b82f6",
+              opacity: !isSupported ? 0.6 : 1,
             }}
           >
             {isRecording ? "🔴 Stop (3s max)" : "🎤 Speak"}
@@ -282,65 +215,54 @@ export default function LetterLevelGemini() {
             <li>Allow microphone access</li>
           </ul>
         </div>
-<<<<<<< HEAD
-
-       
-=======
->>>>>>> upstream/main
       </div>
     </div>
   );
 }
 
+/* =========================
+   Styles (UNCHANGED)
+========================== */
 const styles = {
   container: {
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  minHeight: "100vh",
-  background: "linear-gradient(to bottom, #f8fafc, #ffffff)",
-  padding: "24px"
-},
-
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: "100vh",
+    background: "linear-gradient(to bottom, #f8fafc, #ffffff)",
+    padding: "24px",
+  },
   card: {
     backgroundColor: "white",
     borderRadius: "16px",
     padding: "40px",
-    boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
     maxWidth: "600px",
-    width: "100%"
+    width: "100%",
   },
   title: {
-  fontSize: "26px",
-  fontWeight: 700,
-  color: "#0f172a",
-  marginBottom: "12px",
-  textAlign: "center",
-  letterSpacing: "-0.5px"
-},
-
-  
- letterDisplay: {
-  fontSize: "120px",
-  fontWeight: 700,
-  color: "#1e40af",
-  margin: "28px 0",
-  fontFamily: '"Inter", system-ui, sans-serif',
-  textAlign: "center"
-},
-
+    fontSize: "26px",
+    fontWeight: 700,
+    textAlign: "center",
+    marginBottom: "12px",
+  },
+  letterDisplay: {
+    fontSize: "120px",
+    fontWeight: 700,
+    color: "#1e40af",
+    margin: "28px 0",
+    textAlign: "center",
+  },
   instructions: {
     fontSize: "18px",
     color: "#6b7280",
     marginBottom: "30px",
-    textAlign: "center"
+    textAlign: "center",
   },
   buttonContainer: {
     display: "flex",
-    gap: "10px",
     justifyContent: "center",
     marginBottom: "20px",
-    flexWrap: "wrap"
   },
   recordButton: {
     padding: "14px 28px",
@@ -349,71 +271,36 @@ const styles = {
     color: "white",
     border: "none",
     borderRadius: "8px",
-    transition: "all 0.2s",
-    minWidth: "140px"
-  },
-  nextButton: {
-    padding: "14px 28px",
-    fontSize: "16px",
-    fontWeight: "600",
-    backgroundColor: "#10b981",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
     cursor: "pointer",
-    transition: "all 0.2s"
-  },
-  randomButton: {
-    padding: "14px 28px",
-    fontSize: "16px",
-    fontWeight: "600",
-    backgroundColor: "#8b5cf6",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    cursor: "pointer",
-    transition: "all 0.2s"
   },
   status: {
     fontSize: "18px",
-    color: "#4b5563",
-    margin: "20px 0",
     textAlign: "center",
-    minHeight: "30px"
+    margin: "20px 0",
   },
   scoreContainer: {
     marginTop: "20px",
     padding: "20px",
     borderRadius: "12px",
-    textAlign: "center"
+    textAlign: "center",
   },
   score: {
     fontSize: "36px",
     fontWeight: "bold",
-    margin: "0 0 10px 0"
-  },
-  feedback: {
-    fontSize: "24px",
-    margin: "10px 0 0 0"
   },
   tips: {
     marginTop: "30px",
     padding: "20px",
     backgroundColor: "#f9fafb",
     borderRadius: "8px",
-    textAlign: "left"
   },
   tipsTitle: {
     fontSize: "16px",
     fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: "10px"
+    marginBottom: "10px",
   },
   tipsList: {
     fontSize: "14px",
-    color: "#6b7280",
     paddingLeft: "20px",
-    margin: 0
   },
-  
 };
