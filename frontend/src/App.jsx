@@ -52,6 +52,7 @@ import Toggle from "./student/Toggle";
 import Dashboard from "./student/Dashboard";
 
 import LetterLevel from "./student/LetterLevel";
+import TwoLetterLevel from "./student/TwoLetterLevel";
 import WordLevel from "./student/WordLevel";
 import SentenceLevel from "./student/SentenceLevel.jsx";
 
