@@ -1,52 +1,163 @@
-import { useState } from "react";
-import Login from "./auth/Login";
+// import { useState } from "react";
+// import Login from "./auth/Login";
+// import LetterLevel from "./student/LetterLevel";
+// import SentenceLevel from "./student/SentenceLevel";
+
+// function App() {
+//   const [user, setUser] = useState(null);
+//   const [mode, setMode] = useState("letters"); // "letters" | "sentences"
+
+//   if (!user) return <Login onLogin={setUser} />;
+
+//   if (user.role === "student") {
+//     return (
+//       <div style={{ textAlign: "center", marginTop: 20 }}>
+//         {/* Simple navigation */}
+//         <div style={{ marginBottom: 20 }}>
+//           <button
+//             onClick={() => setMode("letters")}
+//             disabled={mode === "letters"}
+//             style={{ marginRight: 10 }}
+//           >
+//             Letter Practice
+//           </button>
+
+//           <button
+//             onClick={() => setMode("sentences")}
+//             disabled={mode === "sentences"}
+//           >
+//             Sentence Practice
+//           </button>
+//         </div>
+
+//         {mode === "letters" && <LetterLevel />}
+//         {mode === "sentences" && <SentenceLevel />}
+//       </div>
+//     );
+//   }
+
+//   return <div>Logged in as {user.role}</div>;
+// }
+
+// export default App;
+
+import { Routes, Route, Navigate } from "react-router-dom";
+import PublicLayout from "./components/PublicLayout";
+import Landing from "./pages/Landing";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+
+import StudentLayout from "./student/StudentLayout";
+import Toggle from "./student/Toggle";
+import Dashboard from "./student/Dashboard";
+
 import LetterLevel from "./student/LetterLevel";
-import SentenceLevel from "./student/SentenceLevel";
+import TwoLetterLevel from "./student/TwoLetterLevel";
 import WordLevel from "./student/WordLevel";
+import SentenceLevel from "./student/SentenceLevel.jsx";
 
-function App() {
-  const [user, setUser] = useState(null);
-  const [mode, setMode] = useState("letters"); // "letters" | "sentences" | "words"
+/* ================= Protected Route ================= */
+function ProtectedRoute({ children, allowedRoles }) {
+  const user = JSON.parse(localStorage.getItem("user") || "null");
 
-  if (!user) return <Login onLogin={setUser} />;
-
-  if (user.role === "student") {
-    return (
-      <div style={{ textAlign: "center", marginTop: 20 }}>
-        {/* Simple navigation */}
-        <div style={{ marginBottom: 20 }}>
-          <button
-            onClick={() => setMode("letters")}
-            disabled={mode === "letters"}
-            style={{ marginRight: 10 }}
-          >
-            Letter Practice
-          </button>
-
-          <button
-            onClick={() => setMode("sentences")}
-            disabled={mode === "sentences"}
-            style={{ marginRight: 10 }}
-          >
-            Sentence Practice
-          </button>
-
-          <button
-            onClick={() => setMode("words")}
-            disabled={mode === "words"}
-          >
-            Word Practice
-          </button>
-        </div>
-
-        {mode === "letters" && <LetterLevel />}
-        {mode === "sentences" && <SentenceLevel />}
-        {mode === "words" && <WordLevel />}
-      </div>
-    );
+  if (!user) {
+    return <Navigate to="/login" replace />;
   }
 
-  return <div>Logged in as {user.role}</div>;
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
 }
 
+/* ================= App ================= */
+function App() {
+  return (
+    <Routes>
+      {/* -------- Public Routes -------- */}
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+      </Route>
+
+      {/* -------- Student Routes -------- */}
+      <Route
+        path="/student"
+        element={
+          <ProtectedRoute allowedRoles={["student"]}>
+            <StudentLayout />
+          </ProtectedRoute>
+        }
+      >
+        {/* student home */}
+        <Route index element={<Toggle />} />
+
+        {/* dashboard */}
+        <Route path="dashboard" element={<Dashboard />} />
+
+        {/* learning levels (same logic as upstream, just routed) */}
+        <Route path="letter-level" element={<LetterLevel />} />
+        <Route path="word-level" element={<WordLevel />} />
+        <Route path="sentence-level" element={<SentenceLevel />} />
+      </Route>
+
+      {/* -------- Teacher -------- */}
+      <Route
+        path="/teacher/dashboard"
+        element={
+          <ProtectedRoute allowedRoles={["teacher"]}>
+            <Placeholder title="Teacher Dashboard" />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* -------- Parent -------- */}
+      <Route
+        path="/parent/dashboard"
+        element={
+          <ProtectedRoute allowedRoles={["parent"]}>
+            <Placeholder title="Parent Dashboard" />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* -------- Admin -------- */}
+      <Route
+        path="/admin/dashboard"
+        element={
+          <ProtectedRoute allowedRoles={["admin"]}>
+            <Placeholder title="Admin Dashboard" />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* -------- Catch All -------- */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+/* ================= Placeholder ================= */
+function Placeholder({ title }) {
+  return (
+    <div style={placeholderStyle}>
+      <h1>{title}</h1>
+      <p>Coming Soon</p>
+    </div>
+  );
+}
+
+const placeholderStyle = {
+  minHeight: "100vh",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
+  alignItems: "center",
+  fontFamily:
+    '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif',
+};
+
 export default App;
+
