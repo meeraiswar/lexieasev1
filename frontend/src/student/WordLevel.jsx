@@ -1,38 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "../api/api";
-import { startFaceMesh, stopFaceMesh } from "../utils/faceMeshService";
-
-function computeVisionDifficulty(metrics) {
-  const { samples, blinkCount, eyeClosureMin } = metrics;
-
-  if (samples < 60) {
-    return { usable: false, isHard: false, score: 0 };
-  }
-
-  let score = 0;
-
-  // VERY strong signal: deep eye closure
-  if (eyeClosureMin < 0.009) {
-    score += 0.7;
-  }
-
-  // Moderate signal: noticeable closure
-  else if (eyeClosureMin < 0.011) {
-    score += 0.4;
-  }
-
-  // Weak signal: blink instability (supporting only)
-  if (blinkCount >= 4) {
-    score += 0.2;
-  }
-
-  return {
-    usable: true,
-    isHard: score >= 0.6,
-    score: Math.min(score, 1),
-  };
-}
-
+import { computeVisualHesitationScore } from "../utils/visionUtils";
+import {
+  initializeEyeTracking,
+  startSegment,
+  endSegment,
+  getSegmentMetrics,
+  shutdownEyeTracking,
+} from "../utils/eyeTrackingController";
 
 export default function WordLevel() {
   const [word, setWord] = useState(null);
@@ -46,40 +21,30 @@ export default function WordLevel() {
   const chunksRef = useRef([]);
   const streamRef = useRef(null);
   const videoRef = useRef(null);
-  const faceMetricsRef = useRef({
-    blinkCount: 0,
-    eyeClosureMin: 0,
-    samples: 0,
-  });
 
   useEffect(() => {
-  console.log("Word changed:", word);
+    console.log("WordLevel mounted");
+    if (!videoRef.current) {
+      console.log("VideoRef is null");
+      return;
+    }
+    const init = async () => {
+      console.log("Initialiazing eye tracking...");
+      await initializeEyeTracking(videoRef.current);
+    };
 
-  if (!word || !videoRef.current) {
-    console.log("Video is not ready yet");
-    return;
-  }  
-  console.log("Starting FaceMesh (once)");
+    init();
 
-  startFaceMesh(videoRef, faceMetricsRef);
-
-  return () => {
-    console.log("Stopping FaceMesh (unmount)");
-    stopFaceMesh();
-  };
-}, [videoRef.current]);
+    return () => {
+      console.log("Shutting down eye tracking...");
+      shutdownEyeTracking();
+    };
+  }, [videoRef.current]);
 
   useEffect(() => {
     if (!word) return;
-
-    faceMetricsRef.current = {
-      blinkCount: 0,
-      eyeClosureMin: 1,
-      samples: 0,
-    };
+    startSegment();
   }, [word]);
-
-
 
   /* =========================
      Load next word
@@ -128,15 +93,35 @@ export default function WordLevel() {
         const currentWordId = wordId;
         const currentWord = word;
         const responseTimeMs = Date.now() - shownAt;
-    const faceMetrics = faceMetricsRef.current;
-    const visionResult = computeVisionDifficulty(faceMetrics);
-    console.log("Vision difficulty: ", visionResult);
+        endSegment();
+
+        const metrics = getSegmentMetrics();
+
+        let visionResult = { usable: false, score: 0, isHard: false };
+
+        if (responseTimeMs >= 1000) {
+          visionResult = computeVisualHesitationScore(metrics);
+        }
+
+        console.log("=== VISION DEBUG ===");
+        console.log("Response Time:", responseTimeMs);
+        console.log("Samples:", metrics.samples);
+        console.log("Fixation Count:", metrics.fixationCount);
+        console.log("Mean Fixation Duration:", metrics.meanFixationDuration.toFixed(2), "ms");
+        console.log("Visual Score:", visionResult.score.toFixed(3));
+        console.log("Is Hard:", visionResult.isHard);
+        console.log("====================");
+
+
 
         const form = new FormData();
         form.append('audio', blob, 'speech.webm');
         form.append('wordId', currentWordId);
         form.append('expected', currentWord);
         form.append('responseTimeMs', responseTimeMs);
+        form.append("visionUsable", visionResult.usable);
+        form.append("visualScore", visionResult.score);
+        form.append("visionHard", visionResult.isHard);
 
         const res = await fetch('http://localhost:5001/api/words/attempt-audio', {
           method: 'POST',
