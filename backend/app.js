@@ -11,6 +11,7 @@ import relationshipRoutes from "./routes/relationshipRoutes.js";
 import letterRoutes from "./routes/letterRoutes.js";
 import sentenceRoutes from "./routes/sentenceRoutes.js";
 import wordRoutes from "./routes/wordRoutes.js";
+import twoLetterRoutes from "./routes/twoLetterRoutes.js";
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use("/api/sentences", sentenceRoutes);
 app.use("/api/words", wordRoutes);
 app.use("/api/reports", reportRoutes);
 
+app.use("/api/twoletterwords", twoLetterRoutes);
 
 app.listen(5001, () => {
   console.log("Server running on port 5001");

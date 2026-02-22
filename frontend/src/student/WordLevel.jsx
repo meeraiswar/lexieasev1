@@ -570,6 +570,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "../api/api";
+import { computeVisualHesitationScore } from "../utils/visionUtils";
+import {
+  initializeEyeTracking,
+  startSegment,
+  endSegment,
+  getSegmentMetrics,
+  shutdownEyeTracking,
+} from "../utils/eyeTrackingController";
 
 export default function WordLevel() {
   const [word, setWord] = useState(null);
@@ -641,6 +649,34 @@ export default function WordLevel() {
     ];
     return messages[Math.floor(Math.random() * messages.length)];
   };
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const streamRef = useRef(null);
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    console.log("WordLevel mounted");
+    if (!videoRef.current) {
+      console.log("VideoRef is null");
+      return;
+    }
+    const init = async () => {
+      console.log("Initialiazing eye tracking...");
+      await initializeEyeTracking(videoRef.current);
+    };
+
+    init();
+
+    return () => {
+      console.log("Shutting down eye tracking...");
+      shutdownEyeTracking();
+    };
+  }, [videoRef.current]);
+
+  useEffect(() => {
+    if (!word) return;
+    startSegment();
+  }, [word]);
 
   /* =========================
      Load next word
@@ -659,6 +695,13 @@ export default function WordLevel() {
       console.error("❌ Failed to load word:", error);
       setWord("Error loading word. Please refresh.");
     }
+    const res = await apiFetch("/api/words/next");
+    console.log("Loaded word: ", res.word);
+    setWord(res.word);
+    setWordId(res.wordId);
+    setFeedback(null);
+    setSpoken("");
+    setShownAt(Date.now());
   };
 
   useEffect(() => {
@@ -939,6 +982,91 @@ export default function WordLevel() {
     } catch (error) {
       console.error("❌ Stop error:", error);
     }
+     Recording controls (MediaRecorder -> upload to Gemini)
+  ========================== */
+  const startRecording = async () => {
+    try {
+      setSpoken("");
+      setFeedback(null);
+      setShownAt(Date.now());
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      const mediaRecorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: chunksRef.current[0]?.type || 'audio/webm' });
+
+        // stop tracks
+        try {
+          streamRef.current.getTracks().forEach(t => t.stop());
+        } catch (e) {}
+
+        const currentWordId = wordId;
+        const currentWord = word;
+        const responseTimeMs = Date.now() - shownAt;
+        endSegment();
+
+        const metrics = getSegmentMetrics();
+
+        let visionResult = { usable: false, score: 0, isHard: false };
+
+        if (responseTimeMs >= 1000) {
+          visionResult = computeVisualHesitationScore(metrics);
+        }
+
+        console.log("=== VISION DEBUG ===");
+        console.log("Response Time:", responseTimeMs);
+        console.log("Samples:", metrics.samples);
+        console.log("Fixation Count:", metrics.fixationCount);
+        console.log("Mean Fixation Duration:", metrics.meanFixationDuration.toFixed(2), "ms");
+        console.log("Visual Score:", visionResult.score.toFixed(3));
+        console.log("Is Hard:", visionResult.isHard);
+        console.log("====================");
+
+
+
+        const form = new FormData();
+        form.append('audio', blob, 'speech.webm');
+        form.append('wordId', currentWordId);
+        form.append('expected', currentWord);
+        form.append('responseTimeMs', responseTimeMs);
+        form.append("visionUsable", visionResult.usable);
+        form.append("visualScore", visionResult.score);
+        form.append("visionHard", visionResult.isHard);
+
+        const res = await fetch('http://localhost:5001/api/words/attempt-audio', {
+          method: 'POST',
+          credentials: 'include',
+          body: form,
+        });
+
+        const data = await res.json();
+        setFeedback(data);
+        if (data?.transcript) setSpoken(data.transcript);
+
+        setTimeout(() => loadWord(), 1500);
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Recording start failed', err);
+      alert('Unable to access microphone');
+    }
+  };
+
+  const stopRecording = () => {
+    if (!mediaRecorderRef.current) return;
+    mediaRecorderRef.current.stop();
+    setIsRecording(false);
   };
 
   /* =========================
@@ -949,6 +1077,13 @@ export default function WordLevel() {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          style={{ display: "none" }}
+        />
         <h2 style={styles.title}>🗣️ Word Pronunciation</h2>
 
         <div style={styles.wordDisplay}>{word}</div>

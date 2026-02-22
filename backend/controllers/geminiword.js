@@ -1,3 +1,4 @@
+import { initializeAI } from "./Geminiletter.js";
 import WordState from "../models/WordState.js";
 import LetterState from "../models/LetterState.js";
 import { selectNextState } from "../src/bandit/selectNext.js";
@@ -120,39 +121,55 @@ export const getNextWord = async (req, res) => {
   }
 };
 
-// Evaluates word attempt and reinforces letter learning
-export const logWordAttempt = async (req, res) => {
-  console.log("HIT /words/attempt", req.body);
+export const geminiWordAttempt = async (req, res) => {
   try {
     const studentId = req.user._id;
-    const { wordId, expected, spoken, responseTimeMs } = req.body;
+    const { wordId, expected, responseTimeMs } = req.body;
+    const audio = req.file;
 
-    if (!wordId || !expected || !spoken || responseTimeMs === undefined) {
+    if (!wordId || !expected || !audio || responseTimeMs === undefined) {
       return res.status(400).json({
         success: false,
-        error: "Missing required fields",
+        message: "Missing required fields for word attempt",
       });
     }
 
-    // Verify active word
-    const wordState = await WordState.findOne({
-      studentId,
-      wordId,
-    });
-    console.log("ATTEMPT UPDATE", {
-      wordId,
-      expected,
-      studentId,
-    });
+    const wordState = await WordState.findOne({ studentId, wordId });
 
     if (!wordState) {
       return res.status(409).json({
         success: false,
-        error: "No active word or word mismatch",
+        message: "No active word or word mismatch",
       });
     }
 
-    // Normalize text
+    const audioBuffer = audio.buffer;
+    const base64Audio = audioBuffer.toString("base64");
+
+    const geminiAI = initializeAI();
+    const response = await geminiAI.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType: audio.mimetype || "audio/webm",
+                data: base64Audio,
+              },
+            },
+            {
+              text:
+                "Listen to this audio and transcribe ONLY the spoken word. Return only the text.",
+            },
+          ],
+        },
+      ],
+    });
+
+    const spoken = response.text.toLowerCase().trim();
+
     const normalize = (text) =>
       text
         .toLowerCase()
@@ -163,12 +180,22 @@ export const logWordAttempt = async (req, res) => {
     const expectedNorm = normalize(expected);
     const spokenNorm = normalize(spoken);
 
-    // Word-level correctness
     const wordCorrect = expectedNorm === spokenNorm;
 
-    // Extract letter-level errors
-    const problemLetters = new Set();
+    console.log("HIT /words/attempt-audio", {
+      wordId,
+      expected,
+      spoken,
+      responseTimeMs,
+    });
 
+    console.log("ATTEMPT UPDATE", {
+      wordId,
+      expected,
+      studentId,
+    });
+
+    const problemLetters = new Set();
     const minLen = Math.min(expectedNorm.length, spokenNorm.length);
 
     for (let i = 0; i < minLen; i++) {
@@ -182,12 +209,9 @@ export const logWordAttempt = async (req, res) => {
       }
     }
 
-    // Update WordState
-    const fluencyScore = Math.min(1, 3000 / responseTimeMs);
+    const fluencyScore = Math.min(1, 3000 / Number(responseTimeMs));
 
-    const wordReward =
-      0.6 * (wordCorrect ? 1 : 0) +
-      0.4 * fluencyScore;
+    const wordReward = 0.6 * (wordCorrect ? 1 : 0) + 0.4 * fluencyScore;
 
     console.log("REWARD DEBUG", {
       responseTimeMs,
@@ -200,37 +224,25 @@ export const logWordAttempt = async (req, res) => {
     wordState.isActive = false;
     await wordState.save();
 
-    // Reinforce LetterState
     for (const letter of problemLetters) {
-      const letterState = await LetterState.findOne({
-        studentId,
-        letter,
-      });
-
+      const letterState = await LetterState.findOne({ studentId, letter });
       if (!letterState) continue;
-
-      // Small penalty, not harsh
       const letterPenalty = 0.2;
-
       updateBanditState(letterState, -letterPenalty);
       await letterState.save();
     }
 
-    // Respond
     return res.json({
       success: true,
       wordCorrect,
       problemLetters: Array.from(problemLetters),
+      transcript: spoken,
       message: wordCorrect
         ? "Good job! Keep going."
         : "Nice try! Focus on the highlighted sounds.",
     });
-
   } catch (err) {
-    console.error("logWordAttempt error:", err);
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
-    });
+    console.error("Gemini word attempt error:", err);
+    return res.status(500).json({ success: false, message: "Gemini word evaluation failed" });
   }
 };
