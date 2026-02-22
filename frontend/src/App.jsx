@@ -49,7 +49,7 @@ import Signup from "./pages/Signup";
 
 import StudentLayout from "./student/StudentLayout";
 import Toggle from "./student/Toggle";
-import Dashboard from "./student/Dashboard";
+import Dashboard from "./student/studentDashboard.jsx";
 
 import LetterLevel from "./student/LetterLevel";
 import WordLevel from "./student/WordLevel";

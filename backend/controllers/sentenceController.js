@@ -3,6 +3,8 @@ import LetterState from "../models/LetterState.js";
 import { selectNextState } from "../src/bandit/selectNext.js";
 import { updateBanditState } from "../src/bandit/updateState.js";
 import { SENTENCES } from "../data/sentences.js";
+import SentenceAttempt from "../models/SentenceAttempt.js";
+
 
 // Chooses the next sentence based on the student's weakest letters (2–3)
 export const getNextSentence = async (req, res) => {
@@ -227,6 +229,19 @@ export const logSentenceAttempt = async (req, res) => {
       updateBanditState(letterState, -letterPenalty);
       await letterState.save();
     }
+
+
+    // 🔥 SAVE ATTEMPT FOR REPORT GENERATION
+await SentenceAttempt.create({
+  studentId,
+  sentenceId,
+  expected,
+  spoken,
+  sentenceCorrect,
+  sentenceAccuracy,
+  responseTimeMs,
+  problemLetters: Array.from(problemLetters),
+});
 
     // Respond
     return res.json({

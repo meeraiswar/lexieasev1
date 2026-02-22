@@ -1,0 +1,2605 @@
+// import { useEffect, useState } from "react";
+// import { useNavigate } from "react-router-dom";
+// import { apiFetch } from "../api/api";
+
+// import { jsPDF } from "jspdf";
+// import 'jspdf-autotable';
+
+// export default function StudentDashboard() {
+//   const navigate = useNavigate();
+//   const [report, setReport] = useState(null);
+//   const [loading, setLoading] = useState(true);
+//   const [timeframe, setTimeframe] = useState(7);
+//   const [userInfo, setUserInfo] = useState(null);
+//   const [downloading, setDownloading] = useState(false); // ADD THIS
+
+//   useEffect(() => {
+//     const fetchUserInfo = async () => {
+//       try {
+//         const user = await apiFetch('/api/auth/me');
+//         setUserInfo(user);
+//       } catch (error) {
+//         console.error('Failed to fetch user info');
+//       }
+//     };
+    
+//     fetchUserInfo();
+//     fetchReport();
+//   }, [timeframe]);
+
+//   const fetchReport = async () => {
+//     setLoading(true);
+//     try {
+//       const data = await apiFetch(`/api/reports/student?timeframe=${timeframe}`);
+//       console.log("🔍 FULL REPORT DATA:", JSON.stringify(data, null, 2));
+//       setReport(data);
+//     } catch (error) {
+//       console.error("Failed to fetch report:", error);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   const downloadPDFReport = () => {
+//   if (!report?.metrics) return;
+
+//   setDownloading(true);
+
+//   try {
+//     const doc = new jsPDF({ unit: "mm", format: "a4" });
+//     const { metrics } = report;
+
+//     const studentName =
+//       userInfo?.name ||
+//       userInfo?.fullName ||
+//       userInfo?.username ||
+//       "Student";
+
+//     /* ================= HEADER ================= */
+
+//     doc.setFillColor(59, 130, 246);
+//     doc.rect(0, 0, 210, 30, "F");
+
+//     doc.setTextColor(255, 255, 255);
+//     doc.setFont("helvetica", "bold");
+//     doc.setFontSize(20);
+//     doc.text("LexCura Speech Therapy", 105, 14, { align: "center" });
+
+//     doc.setFontSize(12);
+//     doc.setFont("helvetica", "normal");
+//     doc.text("Student Progress Report", 105, 22, { align: "center" });
+
+//     /* ================= REPORT INFO BOX ================= */
+
+//     doc.setTextColor(0, 0, 0);
+//     let yPos = 40;
+
+//     doc.setDrawColor(59, 130, 246);
+//     doc.rect(15, yPos, 180, 22);
+
+//     doc.setFont("helvetica", "bold");
+//     doc.setFontSize(11);
+//     doc.text("Report Information", 20, yPos + 7);
+
+//     doc.setFont("helvetica", "normal");
+//     doc.setFontSize(10);
+//     doc.text(`Student Name: ${studentName}`, 20, yPos + 14);
+//     doc.text(`Report Period: Last ${timeframe} Days`, 20, yPos + 19);
+
+//     doc.text(
+//       `Generated: ${new Date().toLocaleDateString()}`,
+//       120,
+//       yPos + 14
+//     );
+//     doc.text(
+//       `Total Sessions: ${metrics.overview?.totalAttempts || 0}`,
+//       120,
+//       yPos + 19
+//     );
+
+//     yPos += 35;
+
+//     /* ================= EXECUTIVE SUMMARY ================= */
+
+//     doc.setFont("helvetica", "bold");
+//     doc.setFontSize(14);
+//     doc.setTextColor(59, 130, 246);
+//     doc.text("Executive Summary", 20, yPos);
+//     yPos += 8;
+
+//     doc.setFont("helvetica", "normal");
+//     doc.setFontSize(10);
+//     doc.setTextColor(0, 0, 0);
+
+//     const summaryText = `
+// This report covers ${metrics.overview?.totalAttempts || 0} sessions over the last ${timeframe} days.
+// The student achieved a ${metrics.overview?.successRate || 0}% success rate
+// with ${metrics.overview?.accuracyPercentage || 0}% pronunciation accuracy.
+// Trend status: ${metrics.trend?.direction || "Stable"}.
+//     `;
+
+//     const summaryLines = doc.splitTextToSize(summaryText, 170);
+//     summaryLines.forEach(line => {
+//       doc.text(line, 20, yPos);
+//       yPos += 5;
+//     });
+
+//     yPos += 10;
+
+//     /* ================= KPI TABLE ================= */
+
+//     doc.setFont("helvetica", "bold");
+//     doc.setFontSize(14);
+//     doc.setTextColor(59, 130, 246);
+//     doc.text("Key Performance Indicators", 20, yPos);
+//     yPos += 8;
+
+//     doc.autoTable({
+//       startY: yPos,
+//       head: [["Metric", "Value", "Status"]],
+//       body: [
+//         [
+//           "Success Rate",
+//           `${metrics.overview?.successRate || 0}%`,
+//           parseFloat(metrics.overview?.successRate || 0) >= 70
+//             ? "Good"
+//             : "Needs Improvement",
+//         ],
+//         [
+//           "Accuracy",
+//           `${metrics.overview?.accuracyPercentage || 0}%`,
+//           parseFloat(metrics.overview?.accuracyPercentage || 0) >= 80
+//             ? "Excellent"
+//             : "Developing",
+//         ],
+//         [
+//           "Avg Response Time",
+//           `${((metrics.overview?.avgResponseTime || 0) / 1000).toFixed(1)}s`,
+//           metrics.overview?.avgResponseTime < 3000
+//             ? "Fast"
+//             : "Moderate",
+//         ],
+//         [
+//           "Trend",
+//           metrics.trend?.direction?.toUpperCase() || "STABLE",
+//           metrics.trend?.direction === "improving"
+//             ? "Positive"
+//             : metrics.trend?.direction === "declining"
+//             ? "Needs Attention"
+//             : "Stable",
+//         ],
+//       ],
+//       theme: "striped",
+//       tableWidth: "auto",
+//       styles: {
+//         font: "helvetica",
+//         fontSize: 10,
+//         overflow: "linebreak",
+//         cellPadding: 4,
+//       },
+//       headStyles: {
+//         fillColor: [59, 130, 246],
+//       },
+//     });
+
+//     yPos = doc.lastAutoTable.finalY + 15;
+
+//     /* ================= PROBLEM LETTERS ================= */
+
+//     if (metrics.problemAreas?.letters?.length > 0) {
+//       doc.setFont("helvetica", "bold");
+//       doc.setFontSize(14);
+//       doc.setTextColor(239, 68, 68);
+//       doc.text("Phonemes Requiring Attention", 20, yPos);
+//       yPos += 8;
+
+//       doc.autoTable({
+//         startY: yPos,
+//         head: [["Letter", "Errors", "Error Rate"]],
+//         body: metrics.problemAreas.letters.map(item => [
+//           item.letter.toUpperCase(),
+//           item.errorCount,
+//           `${item.errorRate}%`,
+//         ]),
+//         theme: "striped",
+//         tableWidth: "auto",
+//         styles: {
+//           font: "helvetica",
+//           fontSize: 9,
+//           overflow: "linebreak",
+//         },
+//         headStyles: {
+//           fillColor: [239, 68, 68],
+//         },
+//       });
+
+//       yPos = doc.lastAutoTable.finalY + 15;
+//     }
+
+//     /* ================= DAILY PROGRESS ================= */
+
+//     if (metrics.progress?.daily?.length > 0) {
+//       doc.addPage();
+//       yPos = 20;
+
+//       doc.setFont("helvetica", "bold");
+//       doc.setFontSize(14);
+//       doc.setTextColor(59, 130, 246);
+//       doc.text("Session Progress Overview", 20, yPos);
+//       yPos += 8;
+
+//       doc.autoTable({
+//         startY: yPos,
+//         head: [["Date", "Sessions", "Accuracy", "Success Rate"]],
+//         body: metrics.progress.daily.map(day => [
+//           new Date(day.date).toLocaleDateString(),
+//           day.attempts,
+//           `${day.accuracy}%`,
+//           `${day.successRate}%`,
+//         ]),
+//         theme: "striped",
+//         tableWidth: "auto",
+//         styles: {
+//           font: "helvetica",
+//           fontSize: 9,
+//           overflow: "linebreak",
+//         },
+//         headStyles: {
+//           fillColor: [59, 130, 246],
+//         },
+//       });
+//     }
+
+//     /* ================= FOOTER ================= */
+
+//     const pageCount = doc.internal.getNumberOfPages();
+
+//     for (let i = 1; i <= pageCount; i++) {
+//       doc.setPage(i);
+//       doc.setDrawColor(200);
+//       doc.line(20, 285, 190, 285);
+
+//       doc.setFontSize(8);
+//       doc.setTextColor(120);
+//       doc.text(
+//         "LexCura Speech Therapy - Confidential Clinical Report",
+//         20,
+//         290
+//       );
+
+//       doc.text(`Page ${i} of ${pageCount}`, 190, 290, {
+//         align: "right",
+//       });
+//     }
+
+//     /* ================= SAVE ================= */
+
+//     const fileName = `LexCura_Report_${studentName.replace(
+//       /\s+/g,
+//       "_"
+//     )}_${new Date().toISOString().split("T")[0]}.pdf`;
+
+//     doc.save(fileName);
+
+//   } catch (error) {
+//     console.error("PDF error:", error);
+//     alert("Failed to generate report.");
+//   } finally {
+//     setDownloading(false);
+//   }
+// };
+
+
+//   if (loading) {
+//     return (
+//       <div style={styles.loadingContainer}>
+//         <div style={styles.spinner}></div>
+//         <p style={styles.loadingText}>Loading your progress...</p>
+//       </div>
+//     );
+//   }
+
+//   if (!report?.metrics) {
+//     return (
+//       <div style={styles.emptyState}>
+//         <div style={styles.emptyIcon}>📚</div>
+//         <h2 style={styles.emptyTitle}>Start Your Learning Journey!</h2>
+//         <p style={styles.emptyText}>
+//           No practice data yet. Complete some sentence exercises to see your progress.
+//         </p>
+//         <button
+//           style={styles.startButton}
+//           onClick={() => navigate("/student/sentence-level")}
+//         >
+//           Start Practicing
+//         </button>
+//       </div>
+//     );
+//   }
+
+//   const { metrics } = report;
+
+//   return (
+//     <div style={styles.page}>
+//       {/* Header */}
+//       <div style={styles.header}>
+//         <div>
+//           <h1 style={styles.title}>Welcome back! 👋</h1>
+//           <p style={styles.subtitle}>Here's how you're progressing</p>
+//         </div>
+        
+//         <div style={styles.headerActions}>
+//           {/* ✅ DOWNLOAD BUTTON - THIS WAS MISSING */}
+//           <button
+//             style={downloading ? styles.downloadButtonDisabled : styles.downloadButton}
+//             onClick={downloadPDFReport}
+//             disabled={downloading}
+//           >
+//             {downloading ? '⏳ Generating PDF...' : '📥 Download Report'}
+//           </button>
+          
+//           {/* Timeframe Filter */}
+//           <div style={styles.filterContainer}>
+//             <button
+//               style={timeframe === 7 ? styles.filterBtnActive : styles.filterBtn}
+//               onClick={() => setTimeframe(7)}
+//             >
+//               7 Days
+//             </button>
+//             <button
+//               style={timeframe === 30 ? styles.filterBtnActive : styles.filterBtn}
+//               onClick={() => setTimeframe(30)}
+//             >
+//               30 Days
+//             </button>
+//             <button
+//               style={timeframe === 90 ? styles.filterBtnActive : styles.filterBtn}
+//               onClick={() => setTimeframe(90)}
+//             >
+//               90 Days
+//             </button>
+//           </div>
+//         </div>
+//       </div>
+
+//       {/* Rest of your dashboard content... */}
+//       <div style={styles.statsGrid}>
+//         <StatCard
+//           icon="🎯"
+//           label="Success Rate"
+//           value={`${metrics.overview.successRate}%`}
+//           trend={metrics.trend}
+//           color="#10b981"
+//         />
+//         <StatCard
+//           icon="📊"
+//           label="Accuracy"
+//           value={`${metrics.overview.accuracyPercentage}%`}
+//           trend={metrics.trend}
+//           color="#3b82f6"
+//         />
+//         <StatCard
+//           icon="⚡"
+//           label="Avg Response Time"
+//           value={`${(metrics.overview.avgResponseTime / 1000).toFixed(1)}s`}
+//           color="#f59e0b"
+//         />
+//         <StatCard
+//           icon="✅"
+//           label="Total Attempts"
+//           value={metrics.overview.totalAttempts}
+//           subValue={`${metrics.overview.correctAttempts} correct`}
+//           color="#8b5cf6"
+//         />
+//       </div>
+
+//       {metrics.trend.direction !== 'insufficient_data' && (
+//         <TrendCard trend={metrics.trend} />
+//       )}
+
+//       {metrics.feedback && (
+//         <FeedbackSection feedback={metrics.feedback} />
+//       )}
+
+//       <div style={styles.twoColumnGrid}>
+//         {metrics.problemAreas.letters.length > 0 && (
+//           <div style={styles.card}>
+//             <h3 style={styles.cardTitle}>🔤 Letters to Practice</h3>
+//             <div style={styles.problemLettersList}>
+//               {metrics.problemAreas.letters.map((item, idx) => (
+//                 <div key={idx} style={styles.problemLetterItem}>
+//                   <div style={styles.letterBadge}>{item.letter.toUpperCase()}</div>
+//                   <div style={styles.problemLetterInfo}>
+//                     <span style={styles.problemLetterCount}>
+//                       {item.errorCount} errors
+//                     </span>
+//                     <div style={styles.progressBarBg}>
+//                       <div
+//                         style={{
+//                           ...styles.progressBarFill,
+//                           width: `${item.errorRate}%`,
+//                           background: '#ef4444'
+//                         }}
+//                       />
+//                     </div>
+//                   </div>
+//                 </div>
+//               ))}
+//             </div>
+//           </div>
+//         )}
+
+//         {metrics.problemAreas.sentences.length > 0 && (
+//           <div style={styles.card}>
+//             <h3 style={styles.cardTitle}>📝 Challenging Sentences</h3>
+//             <div style={styles.sentenceList}>
+//               {metrics.problemAreas.sentences.map((item, idx) => (
+//                 <div key={idx} style={styles.sentenceItem}>
+//                   <p style={styles.sentenceText}>"{item.sentence}"</p>
+//                   <div style={styles.sentenceStats}>
+//                     <span style={styles.sentenceStat}>
+//                       ✅ {item.successRate}% success
+//                     </span>
+//                     <span style={styles.sentenceStat}>
+//                       ⏱️ {(item.avgTime / 1000).toFixed(1)}s
+//                     </span>
+//                   </div>
+//                 </div>
+//               ))}
+//             </div>
+//           </div>
+//         )}
+//       </div>
+
+//       {metrics.progress.daily.length > 0 && (
+//         <div style={styles.card}>
+//           <h3 style={styles.cardTitle}>📈 Daily Progress</h3>
+//           <DailyProgressChart data={metrics.progress.daily} />
+//         </div>
+//       )}
+
+//       {metrics.progress.letterStrength.length > 0 && (
+//         <div style={styles.card}>
+//           <h3 style={styles.cardTitle}>💪 Letter Mastery</h3>
+//           <div style={styles.letterStrengthGrid}>
+//             {metrics.progress.letterStrength.map((item, idx) => (
+//               <div key={idx} style={styles.letterStrengthItem}>
+//                 <div style={styles.letterStrengthHeader}>
+//                   <span style={styles.letterStrengthLetter}>
+//                     {item.letter.toUpperCase()}
+//                   </span>
+//                   <span style={styles.letterStrengthValue}>
+//                     {item.strength}%
+//                   </span>
+//                 </div>
+//                 <div style={styles.progressBarBg}>
+//                   <div
+//                     style={{
+//                       ...styles.progressBarFill,
+//                       width: `${item.strength}%`,
+//                       background: getStrengthColor(parseFloat(item.strength))
+//                     }}
+//                   />
+//                 </div>
+//                 <span style={styles.letterStrengthAttempts}>
+//                   {item.attempts} attempts
+//                 </span>
+//               </div>
+//             ))}
+//           </div>
+//         </div>
+//       )}
+
+//       <div style={styles.ctaCard}>
+//         <div>
+//           <h3 style={styles.ctaTitle}>Ready to improve? 🚀</h3>
+//           <p style={styles.ctaText}>Keep practicing to master your weak areas!</p>
+//         </div>
+//         <button
+//           style={styles.ctaButton}
+//           onClick={() => navigate("/student/sentence-level")}
+//         >
+//           Continue Practice
+//         </button>
+//       </div>
+//     </div>
+//   );
+// }
+
+// // ... (all your component functions remain the same)
+
+// function StatCard({ icon, label, value, subValue, trend, color }) {
+//   return (
+//     <div style={styles.statCard}>
+//       <div style={{ ...styles.statIcon, background: `${color}15` }}>
+//         <span style={{ fontSize: 24 }}>{icon}</span>
+//       </div>
+//       <div style={styles.statContent}>
+//         <span style={styles.statLabel}>{label}</span>
+//         <h3 style={{ ...styles.statValue, color }}>{value}</h3>
+//         {subValue && <span style={styles.statSubValue}>{subValue}</span>}
+//         {trend && trend.direction !== 'stable' && trend.direction !== 'insufficient_data' && (
+//           <TrendBadge direction={trend.direction} change={trend.change} />
+//         )}
+//       </div>
+//     </div>
+//   );
+// }
+
+// function TrendBadge({ direction, change }) {
+//   const isImproving = direction === 'improving';
+//   return (
+//     <span
+//       style={{
+//         ...styles.trendBadge,
+//         background: isImproving ? '#dcfce7' : '#fee2e2',
+//         color: isImproving ? '#16a34a' : '#dc2626'
+//       }}
+//     >
+//       {isImproving ? '↗' : '↘'} {Math.abs(parseFloat(change))}%
+//     </span>
+//   );
+// }
+
+// function TrendCard({ trend }) {
+//   const isImproving = trend.direction === 'improving';
+//   const isStable = trend.direction === 'stable';
+
+//   return (
+//     <div
+//       style={{
+//         ...styles.trendCard,
+//         background: isImproving
+//           ? 'linear-gradient(135deg, #10b981, #34d399)'
+//           : isStable
+//           ? 'linear-gradient(135deg, #3b82f6, #60a5fa)'
+//           : 'linear-gradient(135deg, #f59e0b, #fbbf24)'
+//       }}
+//     >
+//       <div style={styles.trendIcon}>
+//         {isImproving ? '🎉' : isStable ? '📊' : '💪'}
+//       </div>
+//       <div style={styles.trendContent}>
+//         <h3 style={styles.trendTitle}>
+//           {isImproving && "You're Improving!"}
+//           {isStable && "Steady Progress"}
+//           {!isImproving && !isStable && "Let's Focus"}
+//         </h3>
+//         <p style={styles.trendText}>
+//           {isImproving &&
+//             `Your accuracy increased by ${Math.abs(parseFloat(trend.change))}% recently. Keep it up!`}
+//           {isStable && "Your performance is consistent. Keep practicing!"}
+//           {!isImproving &&
+//             !isStable &&
+//             `Recent accuracy dropped by ${Math.abs(parseFloat(trend.change))}%. Focus on problem areas below.`}
+//         </p>
+//         <div style={styles.trendStats}>
+//           <div>
+//             <span style={styles.trendStatLabel}>Previous</span>
+//             <span style={styles.trendStatValue}>
+//               {(trend.previousAvg * 100).toFixed(1)}%
+//             </span>
+//           </div>
+//           <div style={styles.trendArrow}>→</div>
+//           <div>
+//             <span style={styles.trendStatLabel}>Recent</span>
+//             <span style={styles.trendStatValue}>
+//               {trend.recentAccuracy}%
+//             </span>
+//           </div>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
+
+// function FeedbackSection({ feedback }) {
+//   return (
+//     <div style={styles.feedbackCard}>
+//       <h3 style={styles.feedbackTitle}>💡 Personalized Feedback</h3>
+      
+//       <div style={styles.feedbackMessages}>
+//         {feedback.messages.map((msg, idx) => (
+//           <p key={idx} style={styles.feedbackMessage}>
+//             {msg}
+//           </p>
+//         ))}
+//       </div>
+
+//       <div style={styles.motivationalBox}>
+//         <span style={styles.quoteIcon}>✨</span>
+//         <p style={styles.motivationalText}>{feedback.motivationalQuote}</p>
+//       </div>
+
+//       {feedback.recommendations.length > 0 && (
+//         <div style={styles.recommendationsBox}>
+//           <h4 style={styles.recommendationsTitle}>📌 Action Items:</h4>
+//           <ul style={styles.recommendationsList}>
+//             {feedback.recommendations.map((rec, idx) => (
+//               <li key={idx} style={styles.recommendationItem}>
+//                 {rec}
+//               </li>
+//             ))}
+//           </ul>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+// function DailyProgressChart({ data }) {
+//   const maxAccuracy = Math.max(...data.map(d => parseFloat(d.accuracy)));
+  
+//   return (
+//     <div style={styles.chartContainer}>
+//       <div style={styles.chartBars}>
+//         {data.map((day, idx) => {
+//           const height = (parseFloat(day.accuracy) / maxAccuracy) * 100;
+//           return (
+//             <div key={idx} style={styles.chartBarWrapper}>
+//               <div
+//                 style={{
+//                   ...styles.chartBar,
+//                   height: `${height}%`,
+//                   background:
+//                     parseFloat(day.accuracy) >= 80
+//                       ? '#10b981'
+//                       : parseFloat(day.accuracy) >= 60
+//                       ? '#f59e0b'
+//                       : '#ef4444'
+//                 }}
+//                 title={`${day.accuracy}% accuracy`}
+//               >
+//                 <span style={styles.chartBarLabel}>{day.accuracy}%</span>
+//               </div>
+//               <span style={styles.chartDate}>
+//                 {new Date(day.date).toLocaleDateString('en-US', {
+//                   month: 'short',
+//                   day: 'numeric'
+//                 })}
+//               </span>
+//             </div>
+//           );
+//         })}
+//       </div>
+//     </div>
+//   );
+// }
+
+// function getStrengthColor(strength) {
+//   if (strength >= 80) return '#10b981';
+//   if (strength >= 60) return '#3b82f6';
+//   if (strength >= 40) return '#f59e0b';
+//   return '#ef4444';
+// }
+
+// /* =========================
+//    Styles
+// ========================== */
+
+// const styles = {
+//   // ... (keep all your existing styles)
+  
+//   // ADD THESE NEW STYLES FOR HEADER ACTIONS AND DOWNLOAD BUTTON:
+  
+//   headerActions: {
+//     display: 'flex',
+//     gap: '12px',
+//     alignItems: 'center',
+//     flexWrap: 'wrap'
+//   },
+  
+//   downloadButton: {
+//     background: 'linear-gradient(135deg, #10b981, #059669)',
+//     color: 'white',
+//     border: 'none',
+//     padding: '12px 24px',
+//     borderRadius: '10px',
+//     fontSize: '14px',
+//     fontWeight: '600',
+//     cursor: 'pointer',
+//     transition: 'all 0.2s ease',
+//     boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+//     whiteSpace: 'nowrap'
+//   },
+  
+//   downloadButtonDisabled: {
+//     background: '#94a3b8',
+//     color: 'white',
+//     border: 'none',
+//     padding: '12px 24px',
+//     borderRadius: '10px',
+//     fontSize: '14px',
+//     fontWeight: '600',
+//     cursor: 'not-allowed',
+//     whiteSpace: 'nowrap',
+//     opacity: 0.7
+//   },
+  
+//   // ... (rest of your existing styles)
+//   page: {
+//     padding: '32px',
+//     maxWidth: '1400px',
+//     margin: '0 auto',
+//     background: '#f8fafc'
+//   },
+  
+//   loadingContainer: {
+//     display: 'flex',
+//     flexDirection: 'column',
+//     alignItems: 'center',
+//     justifyContent: 'center',
+//     minHeight: '60vh',
+//     gap: '16px'
+//   },
+  
+//   spinner: {
+//     width: '48px',
+//     height: '48px',
+//     border: '4px solid #e2e8f0',
+//     borderTopColor: '#3b82f6',
+//     borderRadius: '50%',
+//     animation: 'spin 1s linear infinite'
+//   },
+  
+//   loadingText: {
+//     fontSize: '16px',
+//     color: '#64748b'
+//   },
+  
+//   emptyState: {
+//     display: 'flex',
+//     flexDirection: 'column',
+//     alignItems: 'center',
+//     justifyContent: 'center',
+//     minHeight: '60vh',
+//     textAlign: 'center',
+//     padding: '40px'
+//   },
+  
+//   emptyIcon: {
+//     fontSize: '64px',
+//     marginBottom: '24px'
+//   },
+  
+//   emptyTitle: {
+//     fontSize: '28px',
+//     fontWeight: '700',
+//     color: '#0f172a',
+//     marginBottom: '12px'
+//   },
+  
+//   emptyText: {
+//     fontSize: '16px',
+//     color: '#64748b',
+//     marginBottom: '32px',
+//     maxWidth: '400px'
+//   },
+  
+//   startButton: {
+//     background: 'linear-gradient(135deg, #3b82f6, #1e40af)',
+//     color: 'white',
+//     border: 'none',
+//     padding: '14px 32px',
+//     borderRadius: '12px',
+//     fontSize: '16px',
+//     fontWeight: '600',
+//     cursor: 'pointer',
+//     transition: 'transform 0.2s ease'
+//   },
+  
+//   header: {
+//     display: 'flex',
+//     justifyContent: 'space-between',
+//     alignItems: 'center',
+//     marginBottom: '32px',
+//     flexWrap: 'wrap',
+//     gap: '16px'
+//   },
+  
+//   title: {
+//     fontSize: '32px',
+//     fontWeight: '800',
+//     color: '#0f172a',
+//     margin: 0
+//   },
+  
+//   subtitle: {
+//     fontSize: '16px',
+//     color: '#64748b',
+//     marginTop: '8px'
+//   },
+  
+//   filterContainer: {
+//     display: 'flex',
+//     gap: '8px',
+//     background: 'white',
+//     padding: '4px',
+//     borderRadius: '12px',
+//     boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+//   },
+  
+//   filterBtn: {
+//     padding: '8px 16px',
+//     border: 'none',
+//     background: 'transparent',
+//     color: '#64748b',
+//     borderRadius: '8px',
+//     cursor: 'pointer',
+//     fontSize: '14px',
+//     fontWeight: '500',
+//     transition: 'all 0.2s ease'
+//   },
+  
+//   filterBtnActive: {
+//     padding: '8px 16px',
+//     border: 'none',
+//     background: '#3b82f6',
+//     color: 'white',
+//     borderRadius: '8px',
+//     cursor: 'pointer',
+//     fontSize: '14px',
+//     fontWeight: '600'
+//   },
+  
+//   statsGrid: {
+//     display: 'grid',
+//     gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+//     gap: '20px',
+//     marginBottom: '24px'
+//   },
+  
+//   statCard: {
+//     background: 'white',
+//     borderRadius: '16px',
+//     padding: '24px',
+//     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+//     display: 'flex',
+//     gap: '16px',
+//     alignItems: 'flex-start'
+//   },
+  
+//   statIcon: {
+//     width: '56px',
+//     height: '56px',
+//     borderRadius: '12px',
+//     display: 'flex',
+//     alignItems: 'center',
+//     justifyContent: 'center',
+//     flexShrink: 0
+//   },
+  
+//   statContent: {
+//     flex: 1,
+//     display: 'flex',
+//     flexDirection: 'column',
+//     gap: '4px'
+//   },
+  
+//   statLabel: {
+//     fontSize: '13px',
+//     color: '#64748b',
+//     fontWeight: '500'
+//   },
+  
+//   statValue: {
+//     fontSize: '28px',
+//     fontWeight: '700',
+//     lineHeight: 1
+//   },
+  
+//   statSubValue: {
+//     fontSize: '13px',
+//     color: '#64748b'
+//   },
+  
+//   trendBadge: {
+//     display: 'inline-block',
+//     padding: '4px 8px',
+//     borderRadius: '6px',
+//     fontSize: '12px',
+//     fontWeight: '600',
+//     marginTop: '4px'
+//   },
+  
+//   trendCard: {
+//     borderRadius: '20px',
+//     padding: '32px',
+//     marginBottom: '24px',
+//     color: 'white',
+//     display: 'flex',
+//     gap: '24px',
+//     alignItems: 'center',
+//     boxShadow: '0 10px 25px rgba(0,0,0,0.15)'
+//   },
+  
+//   trendIcon: {
+//     fontSize: '48px',
+//     flexShrink: 0
+//   },
+  
+//   trendContent: {
+//     flex: 1
+//   },
+  
+//   trendTitle: {
+//     fontSize: '24px',
+//     fontWeight: '700',
+//     marginBottom: '8px'
+//   },
+  
+//   trendText: {
+//     fontSize: '15px',
+//     opacity: 0.95,
+//     marginBottom: '16px',
+//     lineHeight: 1.5
+//   },
+  
+//   trendStats: {
+//     display: 'flex',
+//     alignItems: 'center',
+//     gap: '16px'
+//   },
+  
+//   trendStatLabel: {
+//     display: 'block',
+//     fontSize: '12px',
+//     opacity: 0.8,
+//     marginBottom: '4px'
+//   },
+  
+//   trendStatValue: {
+//     display: 'block',
+//     fontSize: '20px',
+//     fontWeight: '700'
+//   },
+  
+//   trendArrow: {
+//     fontSize: '20px',
+//     opacity: 0.8
+//   },
+  
+//   card: {
+//     background: 'white',
+//     borderRadius: '16px',
+//     padding: '24px',
+//     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+//     marginBottom: '24px'
+//   },
+  
+//   cardTitle: {
+//     fontSize: '18px',
+//     fontWeight: '700',
+//     color: '#0f172a',
+//     marginBottom: '20px'
+//   },
+  
+//   twoColumnGrid: {
+//     display: 'grid',
+//     gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+//     gap: '20px',
+//     marginBottom: '24px'
+//   },
+  
+//   problemLettersList: {
+//     display: 'flex',
+//     flexDirection: 'column',
+//     gap: '12px'
+//   },
+  
+//   problemLetterItem: {
+//     display: 'flex',
+//     alignItems: 'center',
+//     gap: '16px'
+//   },
+  
+//   letterBadge: {
+//     width: '48px',
+//     height: '48px',
+//     borderRadius: '12px',
+//     background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+//     color: 'white',
+//     display: 'flex',
+//     alignItems: 'center',
+//     justifyContent: 'center',
+//     fontSize: '20px',
+//     fontWeight: '700',
+//     flexShrink: 0
+//   },
+  
+//   problemLetterInfo: {
+//     flex: 1
+//   },
+  
+//   problemLetterCount: {
+//     fontSize: '14px',
+//     color: '#64748b',
+//     display: 'block',
+//     marginBottom: '6px'
+//   },
+  
+//   progressBarBg: {
+//     height: '8px',
+//     background: '#e2e8f0',
+//     borderRadius: '4px',
+//     overflow: 'hidden'
+//   },
+  
+//   progressBarFill: {
+//     height: '100%',
+//     borderRadius: '4px',
+//     transition: 'width 0.3s ease'
+//   },
+  
+//   sentenceList: {
+//     display: 'flex',
+//     flexDirection: 'column',
+//     gap: '16px'
+//   },
+  
+//   sentenceItem: {
+//     padding: '16px',
+//     background: '#f8fafc',
+//     borderRadius: '12px',
+//     borderLeft: '4px solid #f59e0b'
+//   },
+  
+//   sentenceText: {
+//     fontSize: '14px',
+//     color: '#0f172a',
+//     marginBottom: '12px',
+//     fontStyle: 'italic',
+//     lineHeight: 1.6
+//   },
+  
+//   sentenceStats: {
+//     display: 'flex',
+//     gap: '16px'
+//   },
+  
+//   sentenceStat: {
+//     fontSize: '13px',
+//     color: '#64748b',
+//     fontWeight: '500'
+//   },
+  
+//   feedbackCard: {
+//     background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
+//     borderRadius: '20px',
+//     padding: '32px',
+//     marginBottom: '24px',
+//     border: '2px solid #bae6fd'
+//   },
+  
+//   feedbackTitle: {
+//     fontSize: '20px',
+//     fontWeight: '700',
+//     color: '#0c4a6e',
+//     marginBottom: '20px'
+//   },
+  
+//   feedbackMessages: {
+//     display: 'flex',
+//     flexDirection: 'column',
+//     gap: '12px',
+//     marginBottom: '20px'
+//   },
+  
+//   feedbackMessage: {
+//     fontSize: '15px',
+//     color: '#0f172a',
+//     lineHeight: 1.6,
+//     padding: '12px 16px',
+//     background: 'white',
+//     borderRadius: '10px',
+//     margin: 0
+//   },
+  
+//   motivationalBox: {
+//     background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+//     padding: '20px',
+//     borderRadius: '12px',
+//     display: 'flex',
+//     alignItems: 'center',
+//     gap: '16px',
+//     marginBottom: '20px'
+//   },
+  
+//   quoteIcon: {
+//     fontSize: '32px',
+//     flexShrink: 0
+//   },
+  
+//   motivationalText: {
+//     fontSize: '16px',
+//     fontWeight: '600',
+//     color: '#78350f',
+//     margin: 0
+//   },
+  
+//   recommendationsBox: {
+//     background: 'white',
+//     padding: '20px',
+//     borderRadius: '12px'
+//   },
+  
+//   recommendationsTitle: {
+//     fontSize: '15px',
+//     fontWeight: '700',
+//     color: '#0f172a',
+//     marginBottom: '12px',
+//     marginTop: 0
+//   },
+  
+//   recommendationsList: {
+//     margin: 0,
+//     paddingLeft: '20px'
+//   },
+  
+//   recommendationItem: {
+//     fontSize: '14px',
+//     color: '#475569',
+//     marginBottom: '8px',
+//     lineHeight: 1.6
+//   },
+  
+//   chartContainer: {
+//     padding: '20px 0'
+//   },
+  
+//   chartBars: {
+//     display: 'flex',
+//     alignItems: 'flex-end',
+//     gap: '12px',
+//     height: '200px'
+//   },
+  
+//   chartBarWrapper: {
+//     flex: 1,
+//     display: 'flex',
+//     flexDirection: 'column',
+//     alignItems: 'center',
+//     gap: '8px',
+//     height: '100%'
+//   },
+  
+//   chartBar: {
+//     width: '100%',
+//     borderRadius: '8px 8px 0 0',
+//     minHeight: '20px',
+//     display: 'flex',
+//     alignItems: 'flex-start',
+//     justifyContent: 'center',
+//     paddingTop: '8px',
+//     transition: 'height 0.3s ease',
+//     position: 'relative'
+//   },
+  
+//   chartBarLabel: {
+//     fontSize: '11px',
+//     fontWeight: '700',
+//     color: 'white'
+//   },
+  
+//   chartDate: {
+//     fontSize: '11px',
+//     color: '#64748b',
+//     fontWeight: '500',
+//     textAlign: 'center'
+//   },
+  
+//   letterStrengthGrid: {
+//     display: 'grid',
+//     gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+//     gap: '16px'
+//   },
+  
+//   letterStrengthItem: {
+//     padding: '16px',
+//     background: '#f8fafc',
+//     borderRadius: '12px'
+//   },
+  
+//   letterStrengthHeader: {
+//     display: 'flex',
+//     justifyContent: 'space-between',
+//     alignItems: 'center',
+//     marginBottom: '8px'
+//   },
+  
+//   letterStrengthLetter: {
+//     fontSize: '20px',
+//     fontWeight: '700',
+//     color: '#0f172a'
+//   },
+  
+//   letterStrengthValue: {
+//     fontSize: '16px',
+//     fontWeight: '700',
+//     color: '#3b82f6'
+//   },
+  
+//   letterStrengthAttempts: {
+//     fontSize: '12px',
+//     color: '#64748b',
+//     display: 'block',
+//     marginTop: '8px'
+//   },
+  
+//   ctaCard: {
+//     background: 'linear-gradient(135deg, #1e40af, #3b82f6)',
+//     borderRadius: '20px',
+//     padding: '32px',
+//     display: 'flex',
+//     justifyContent: 'space-between',
+//     alignItems: 'center',
+//     color: 'white',
+//     flexWrap: 'wrap',
+//     gap: '20px'
+//   },
+  
+//   ctaTitle: {
+//     fontSize: '24px',
+//     fontWeight: '700',
+//     marginBottom: '8px',
+//     marginTop: 0
+//   },
+  
+//   ctaText: {
+//     fontSize: '15px',
+//     opacity: 0.9,
+//     margin: 0
+//   },
+  
+//   ctaButton: {
+//     background: 'white',
+//     color: '#1e40af',
+//     border: 'none',
+//     padding: '14px 28px',
+//     borderRadius: '12px',
+//     fontSize: '16px',
+//     fontWeight: '700',
+//     cursor: 'pointer',
+//     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+//     boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+//   }
+// };
+
+// const styleSheet = document.createElement("style");
+// styleSheet.textContent = `
+//   @keyframes spin {
+//     to { transform: rotate(360deg); }
+//   }
+  
+//   button:hover:not(:disabled) {
+//     transform: translateY(-2px);
+//   }
+  
+//   button:disabled {
+//     cursor: not-allowed;
+//   }
+// `;
+// document.head.appendChild(styleSheet);
+
+
+
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../api/api";
+
+import { jsPDF } from "jspdf";
+import 'jspdf-autotable';
+
+export default function StudentDashboard() {
+  const navigate = useNavigate();
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [timeframe, setTimeframe] = useState(7);
+  const [userInfo, setUserInfo] = useState(null);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const user = await apiFetch('/api/auth/me');
+        setUserInfo(user);
+      } catch (error) {
+        console.error('Failed to fetch user info');
+      }
+    };
+    
+    fetchUserInfo();
+    fetchReport();
+  }, [timeframe]);
+
+  const fetchReport = async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch(`/api/reports/student?timeframe=${timeframe}`);
+      console.log("🔍 FULL REPORT DATA:", JSON.stringify(data, null, 2));
+      setReport(data);
+    } catch (error) {
+      console.error("Failed to fetch report:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadPDFReport = () => {
+    if (!report?.metrics) return;
+
+    setDownloading(true);
+
+    try {
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      const { metrics } = report;
+
+      // FIX: Use userInfo.name directly (from User model's name field)
+      const studentName = userInfo?.name || "Student";
+
+      /* ================= HEADER ================= */
+
+      doc.setFillColor(59, 130, 246);
+      doc.rect(0, 0, 210, 30, "F");
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(20);
+      doc.text("LexCura Speech Therapy", 105, 14, { align: "center" });
+
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text("Student Progress Report", 105, 22, { align: "center" });
+
+      /* ================= REPORT INFO BOX ================= */
+
+      doc.setTextColor(0, 0, 0);
+      let yPos = 40;
+
+      doc.setDrawColor(59, 130, 246);
+      doc.rect(15, yPos, 180, 22);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("Report Information", 20, yPos + 7);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.text(`Student Name: ${studentName}`, 20, yPos + 14);
+      doc.text(`Report Period: Last ${timeframe} Days`, 20, yPos + 19);
+
+      doc.text(
+        `Generated: ${new Date().toLocaleDateString()}`,
+        120,
+        yPos + 14
+      );
+      doc.text(
+        `Total Sessions: ${metrics.overview?.totalAttempts || 0}`,
+        120,
+        yPos + 19
+      );
+
+      yPos += 35;
+
+      /* ================= EXECUTIVE SUMMARY ================= */
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(59, 130, 246);
+      doc.text("Executive Summary", 20, yPos);
+      yPos += 8;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+
+      const summaryText = `
+This report covers ${metrics.overview?.totalAttempts || 0} sessions over the last ${timeframe} days.
+The student achieved a ${metrics.overview?.successRate || 0}% success rate
+with ${metrics.overview?.accuracyPercentage || 0}% pronunciation accuracy.
+Trend status: ${metrics.trend?.direction || "Stable"}.
+      `;
+
+      const summaryLines = doc.splitTextToSize(summaryText, 170);
+      summaryLines.forEach(line => {
+        doc.text(line, 20, yPos);
+        yPos += 5;
+      });
+
+      yPos += 10;
+
+      /* ================= KPI TABLE ================= */
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(59, 130, 246);
+      doc.text("Key Performance Indicators", 20, yPos);
+      yPos += 8;
+
+      doc.autoTable({
+        startY: yPos,
+        head: [["Metric", "Value", "Status"]],
+        body: [
+          [
+            "Success Rate",
+            `${metrics.overview?.successRate || 0}%`,
+            parseFloat(metrics.overview?.successRate || 0) >= 70
+              ? "Good"
+              : "Needs Improvement",
+          ],
+          [
+            "Accuracy",
+            `${metrics.overview?.accuracyPercentage || 0}%`,
+            parseFloat(metrics.overview?.accuracyPercentage || 0) >= 80
+              ? "Excellent"
+              : "Developing",
+          ],
+          [
+            "Avg Response Time",
+            `${((metrics.overview?.avgResponseTime || 0) / 1000).toFixed(1)}s`,
+            metrics.overview?.avgResponseTime < 3000
+              ? "Fast"
+              : "Moderate",
+          ],
+          [
+            "Trend",
+            metrics.trend?.direction?.toUpperCase() || "STABLE",
+            metrics.trend?.direction === "improving"
+              ? "Positive"
+              : metrics.trend?.direction === "declining"
+              ? "Needs Attention"
+              : "Stable",
+          ],
+        ],
+        theme: "striped",
+        tableWidth: "auto",
+        styles: {
+          font: "helvetica",
+          fontSize: 10,
+          overflow: "linebreak",
+          cellPadding: 4,
+        },
+        headStyles: {
+          fillColor: [59, 130, 246],
+        },
+      });
+
+      yPos = doc.lastAutoTable.finalY + 15;
+
+      /* ================= PROBLEM LETTERS ================= */
+
+      if (metrics.problemAreas?.letters?.length > 0) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.setTextColor(239, 68, 68);
+        doc.text("Phonemes Requiring Attention", 20, yPos);
+        yPos += 8;
+
+        doc.autoTable({
+          startY: yPos,
+          head: [["Letter", "Errors", "Error Rate"]],
+          body: metrics.problemAreas.letters.map(item => [
+            item.letter.toUpperCase(),
+            item.errorCount,
+            `${item.errorRate}%`,
+          ]),
+          theme: "striped",
+          tableWidth: "auto",
+          styles: {
+            font: "helvetica",
+            fontSize: 9,
+            overflow: "linebreak",
+          },
+          headStyles: {
+            fillColor: [239, 68, 68],
+          },
+        });
+
+        yPos = doc.lastAutoTable.finalY + 15;
+      }
+
+      /* ================= DAILY PROGRESS ================= */
+
+      if (metrics.progress?.daily?.length > 0) {
+        doc.addPage();
+        yPos = 20;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.setTextColor(59, 130, 246);
+        doc.text("Session Progress Overview", 20, yPos);
+        yPos += 8;
+
+        doc.autoTable({
+          startY: yPos,
+          head: [["Date", "Sessions", "Accuracy", "Success Rate"]],
+          body: metrics.progress.daily.map(day => [
+            new Date(day.date).toLocaleDateString(),
+            day.attempts,
+            `${day.accuracy}%`,
+            `${day.successRate}%`,
+          ]),
+          theme: "striped",
+          tableWidth: "auto",
+          styles: {
+            font: "helvetica",
+            fontSize: 9,
+            overflow: "linebreak",
+          },
+          headStyles: {
+            fillColor: [59, 130, 246],
+          },
+        });
+
+        yPos = doc.lastAutoTable.finalY + 15;
+      }
+
+      /* ================= THERAPIST REMARKS SECTION ================= */
+
+      // Add new page for therapist remarks if needed
+      if (yPos > 220) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(139, 92, 246); // Purple color
+      doc.text("Therapist Remarks", 20, yPos);
+      yPos += 10;
+
+      // Draw remarks box
+      doc.setDrawColor(139, 92, 246);
+      doc.setLineWidth(0.5);
+      doc.rect(15, yPos, 180, 60);
+
+      // Add lines for writing
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.2);
+      for (let i = 0; i < 10; i++) {
+        const lineY = yPos + 6 + (i * 5.5);
+        if (lineY < yPos + 58) { // Stay within box
+          doc.line(20, lineY, 190, lineY);
+        }
+      }
+
+      // Add label
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(9);
+      doc.setTextColor(120, 120, 120);
+      doc.text("Therapist notes and recommendations:", 20, yPos + 3);
+
+      yPos += 70;
+
+      // Add signature line
+      doc.setDrawColor(100, 100, 100);
+      doc.setLineWidth(0.3);
+      doc.line(20, yPos, 100, yPos);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      doc.text("Therapist Signature", 20, yPos + 5);
+      
+      doc.line(120, yPos, 190, yPos);
+      doc.text("Date", 120, yPos + 5);
+
+      /* ================= FOOTER ================= */
+
+      const pageCount = doc.internal.getNumberOfPages();
+
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setDrawColor(200);
+        doc.line(20, 285, 190, 285);
+
+        doc.setFontSize(8);
+        doc.setTextColor(120);
+        doc.text(
+          "LexCura Speech Therapy - Confidential Clinical Report",
+          20,
+          290
+        );
+
+        doc.text(`Page ${i} of ${pageCount}`, 190, 290, {
+          align: "right",
+        });
+      }
+
+      /* ================= SAVE ================= */
+
+      const fileName = `LexCura_Report_${studentName.replace(
+        /\s+/g,
+        "_"
+      )}_${new Date().toISOString().split("T")[0]}.pdf`;
+
+      doc.save(fileName);
+
+    } catch (error) {
+      console.error("PDF error:", error);
+      alert("Failed to generate report.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={styles.loadingContainer}>
+        <div style={styles.spinner}></div>
+        <p style={styles.loadingText}>Loading your progress...</p>
+      </div>
+    );
+  }
+
+  if (!report?.metrics) {
+    return (
+      <div style={styles.emptyState}>
+        <div style={styles.emptyIcon}>📚</div>
+        <h2 style={styles.emptyTitle}>Start Your Learning Journey!</h2>
+        <p style={styles.emptyText}>
+          No practice data yet. Complete some sentence exercises to see your progress.
+        </p>
+        <button
+          style={styles.startButton}
+          onClick={() => navigate("/student/sentence-level")}
+        >
+          Start Practicing
+        </button>
+      </div>
+    );
+  }
+
+  const { metrics } = report;
+
+  return (
+    <div style={styles.page}>
+      {/* Header */}
+      <div style={styles.header}>
+        <div>
+          <h1 style={styles.title}>Welcome back, {userInfo?.name || 'Student'}! 👋</h1>
+          <p style={styles.subtitle}>Here's how you're progressing</p>
+        </div>
+        
+        <div style={styles.headerActions}>
+          <button
+            style={downloading ? styles.downloadButtonDisabled : styles.downloadButton}
+            onClick={downloadPDFReport}
+            disabled={downloading}
+          >
+            {downloading ? '⏳ Generating PDF...' : '📥 Download Report'}
+          </button>
+          
+          <div style={styles.filterContainer}>
+            <button
+              style={timeframe === 7 ? styles.filterBtnActive : styles.filterBtn}
+              onClick={() => setTimeframe(7)}
+            >
+              7 Days
+            </button>
+            <button
+              style={timeframe === 30 ? styles.filterBtnActive : styles.filterBtn}
+              onClick={() => setTimeframe(30)}
+            >
+              30 Days
+            </button>
+            <button
+              style={timeframe === 90 ? styles.filterBtnActive : styles.filterBtn}
+              onClick={() => setTimeframe(90)}
+            >
+              90 Days
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Rest of dashboard content */}
+      <div style={styles.statsGrid}>
+        <StatCard
+          icon="🎯"
+          label="Success Rate"
+          value={`${metrics.overview.successRate}%`}
+          trend={metrics.trend}
+          color="#10b981"
+        />
+        <StatCard
+          icon="📊"
+          label="Accuracy"
+          value={`${metrics.overview.accuracyPercentage}%`}
+          trend={metrics.trend}
+          color="#3b82f6"
+        />
+        <StatCard
+          icon="⚡"
+          label="Avg Response Time"
+          value={`${(metrics.overview.avgResponseTime / 1000).toFixed(1)}s`}
+          color="#f59e0b"
+        />
+        <StatCard
+          icon="✅"
+          label="Total Attempts"
+          value={metrics.overview.totalAttempts}
+          subValue={`${metrics.overview.correctAttempts} correct`}
+          color="#8b5cf6"
+        />
+      </div>
+
+      {metrics.trend.direction !== 'insufficient_data' && (
+        <TrendCard trend={metrics.trend} />
+      )}
+
+      {metrics.feedback && (
+        <FeedbackSection feedback={metrics.feedback} />
+      )}
+
+      <div style={styles.twoColumnGrid}>
+        {metrics.problemAreas.letters.length > 0 && (
+          <div style={styles.card}>
+            <h3 style={styles.cardTitle}>🔤 Letters to Practice</h3>
+            <div style={styles.problemLettersList}>
+              {metrics.problemAreas.letters.map((item, idx) => (
+                <div key={idx} style={styles.problemLetterItem}>
+                  <div style={styles.letterBadge}>{item.letter.toUpperCase()}</div>
+                  <div style={styles.problemLetterInfo}>
+                    <span style={styles.problemLetterCount}>
+                      {item.errorCount} errors
+                    </span>
+                    <div style={styles.progressBarBg}>
+                      <div
+                        style={{
+                          ...styles.progressBarFill,
+                          width: `${item.errorRate}%`,
+                          background: '#ef4444'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {metrics.problemAreas.sentences.length > 0 && (
+          <div style={styles.card}>
+            <h3 style={styles.cardTitle}>📝 Challenging Sentences</h3>
+            <div style={styles.sentenceList}>
+              {metrics.problemAreas.sentences.map((item, idx) => (
+                <div key={idx} style={styles.sentenceItem}>
+                  <p style={styles.sentenceText}>"{item.sentence}"</p>
+                  <div style={styles.sentenceStats}>
+                    <span style={styles.sentenceStat}>
+                      ✅ {item.successRate}% success
+                    </span>
+                    <span style={styles.sentenceStat}>
+                      ⏱️ {(item.avgTime / 1000).toFixed(1)}s
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {metrics.progress.daily.length > 0 && (
+        <div style={styles.card}>
+          <h3 style={styles.cardTitle}>📈 Daily Progress</h3>
+          <DailyProgressChart data={metrics.progress.daily} />
+        </div>
+      )}
+
+      {metrics.progress.letterStrength.length > 0 && (
+        <div style={styles.card}>
+          <h3 style={styles.cardTitle}>💪 Letter Mastery</h3>
+          <div style={styles.letterStrengthGrid}>
+            {metrics.progress.letterStrength.map((item, idx) => (
+              <div key={idx} style={styles.letterStrengthItem}>
+                <div style={styles.letterStrengthHeader}>
+                  <span style={styles.letterStrengthLetter}>
+                    {item.letter.toUpperCase()}
+                  </span>
+                  <span style={styles.letterStrengthValue}>
+                    {item.strength}%
+                  </span>
+                </div>
+                <div style={styles.progressBarBg}>
+                  <div
+                    style={{
+                      ...styles.progressBarFill,
+                      width: `${item.strength}%`,
+                      background: getStrengthColor(parseFloat(item.strength))
+                    }}
+                  />
+                </div>
+                <span style={styles.letterStrengthAttempts}>
+                  {item.attempts} attempts
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={styles.ctaCard}>
+        <div>
+          <h3 style={styles.ctaTitle}>Ready to improve? 🚀</h3>
+          <p style={styles.ctaText}>Keep practicing to master your weak areas!</p>
+        </div>
+        <button
+          style={styles.ctaButton}
+          onClick={() => navigate("/student/sentence-level")}
+        >
+          Continue Practice
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Component functions
+function StatCard({ icon, label, value, subValue, trend, color }) {
+  return (
+    <div style={styles.statCard}>
+      <div style={{ ...styles.statIcon, background: `${color}15` }}>
+        <span style={{ fontSize: 24 }}>{icon}</span>
+      </div>
+      <div style={styles.statContent}>
+        <span style={styles.statLabel}>{label}</span>
+        <h3 style={{ ...styles.statValue, color }}>{value}</h3>
+        {subValue && <span style={styles.statSubValue}>{subValue}</span>}
+        {trend && trend.direction !== 'stable' && trend.direction !== 'insufficient_data' && (
+          <TrendBadge direction={trend.direction} change={trend.change} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TrendBadge({ direction, change }) {
+  const isImproving = direction === 'improving';
+  return (
+    <span
+      style={{
+        ...styles.trendBadge,
+        background: isImproving ? '#dcfce7' : '#fee2e2',
+        color: isImproving ? '#16a34a' : '#dc2626'
+      }}
+    >
+      {isImproving ? '↗' : '↘'} {Math.abs(parseFloat(change))}%
+    </span>
+  );
+}
+
+function TrendCard({ trend }) {
+  const isImproving = trend.direction === 'improving';
+  const isStable = trend.direction === 'stable';
+
+  return (
+    <div
+      style={{
+        ...styles.trendCard,
+        background: isImproving
+          ? 'linear-gradient(135deg, #10b981, #34d399)'
+          : isStable
+          ? 'linear-gradient(135deg, #3b82f6, #60a5fa)'
+          : 'linear-gradient(135deg, #f59e0b, #fbbf24)'
+      }}
+    >
+      <div style={styles.trendIcon}>
+        {isImproving ? '🎉' : isStable ? '📊' : '💪'}
+      </div>
+      <div style={styles.trendContent}>
+        <h3 style={styles.trendTitle}>
+          {isImproving && "You're Improving!"}
+          {isStable && "Steady Progress"}
+          {!isImproving && !isStable && "Let's Focus"}
+        </h3>
+        <p style={styles.trendText}>
+          {isImproving &&
+            `Your accuracy increased by ${Math.abs(parseFloat(trend.change))}% recently. Keep it up!`}
+          {isStable && "Your performance is consistent. Keep practicing!"}
+          {!isImproving &&
+            !isStable &&
+            `Recent accuracy dropped by ${Math.abs(parseFloat(trend.change))}%. Focus on problem areas below.`}
+        </p>
+        <div style={styles.trendStats}>
+          <div>
+            <span style={styles.trendStatLabel}>Previous</span>
+            <span style={styles.trendStatValue}>
+              {(trend.previousAvg * 100).toFixed(1)}%
+            </span>
+          </div>
+          <div style={styles.trendArrow}>→</div>
+          <div>
+            <span style={styles.trendStatLabel}>Recent</span>
+            <span style={styles.trendStatValue}>
+              {trend.recentAccuracy}%
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeedbackSection({ feedback }) {
+  return (
+    <div style={styles.feedbackCard}>
+      <h3 style={styles.feedbackTitle}>💡 Personalized Feedback</h3>
+      
+      <div style={styles.feedbackMessages}>
+        {feedback.messages.map((msg, idx) => (
+          <p key={idx} style={styles.feedbackMessage}>
+            {msg}
+          </p>
+        ))}
+      </div>
+
+      <div style={styles.motivationalBox}>
+        <span style={styles.quoteIcon}>✨</span>
+        <p style={styles.motivationalText}>{feedback.motivationalQuote}</p>
+      </div>
+
+      {feedback.recommendations.length > 0 && (
+        <div style={styles.recommendationsBox}>
+          <h4 style={styles.recommendationsTitle}>📌 Action Items:</h4>
+          <ul style={styles.recommendationsList}>
+            {feedback.recommendations.map((rec, idx) => (
+              <li key={idx} style={styles.recommendationItem}>
+                {rec}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DailyProgressChart({ data }) {
+  const maxAccuracy = Math.max(...data.map(d => parseFloat(d.accuracy)));
+  
+  return (
+    <div style={styles.chartContainer}>
+      <div style={styles.chartBars}>
+        {data.map((day, idx) => {
+          const height = (parseFloat(day.accuracy) / maxAccuracy) * 100;
+          return (
+            <div key={idx} style={styles.chartBarWrapper}>
+              <div
+                style={{
+                  ...styles.chartBar,
+                  height: `${height}%`,
+                  background:
+                    parseFloat(day.accuracy) >= 80
+                      ? '#10b981'
+                      : parseFloat(day.accuracy) >= 60
+                      ? '#f59e0b'
+                      : '#ef4444'
+                }}
+                title={`${day.accuracy}% accuracy`}
+              >
+                <span style={styles.chartBarLabel}>{day.accuracy}%</span>
+              </div>
+              <span style={styles.chartDate}>
+                {new Date(day.date).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric'
+                })}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function getStrengthColor(strength) {
+  if (strength >= 80) return '#10b981';
+  if (strength >= 60) return '#3b82f6';
+  if (strength >= 40) return '#f59e0b';
+  return '#ef4444';
+}
+
+/* ========================= Styles ========================== */
+
+const styles = {
+  headerActions: {
+    display: 'flex',
+    gap: '12px',
+    alignItems: 'center',
+    flexWrap: 'wrap'
+  },
+  
+  downloadButton: {
+    background: 'linear-gradient(135deg, #10b981, #059669)',
+    color: 'white',
+    border: 'none',
+    padding: '12px 24px',
+    borderRadius: '10px',
+    fontSize: '14px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+    whiteSpace: 'nowrap'
+  },
+  
+  downloadButtonDisabled: {
+    background: '#94a3b8',
+    color: 'white',
+    border: 'none',
+    padding: '12px 24px',
+    borderRadius: '10px',
+    fontSize: '14px',
+    fontWeight: '600',
+    cursor: 'not-allowed',
+    whiteSpace: 'nowrap',
+    opacity: 0.7
+  },
+  
+  page: {
+    padding: '32px',
+    maxWidth: '1400px',
+    margin: '0 auto',
+    background: '#f8fafc'
+  },
+  
+  loadingContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '60vh',
+    gap: '16px'
+  },
+  
+  spinner: {
+    width: '48px',
+    height: '48px',
+    border: '4px solid #e2e8f0',
+    borderTopColor: '#3b82f6',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite'
+  },
+  
+  loadingText: {
+    fontSize: '16px',
+    color: '#64748b'
+  },
+  
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '60vh',
+    textAlign: 'center',
+    padding: '40px'
+  },
+  
+  emptyIcon: {
+    fontSize: '64px',
+    marginBottom: '24px'
+  },
+  
+  emptyTitle: {
+    fontSize: '28px',
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: '12px'
+  },
+  
+  emptyText: {
+    fontSize: '16px',
+    color: '#64748b',
+    marginBottom: '32px',
+    maxWidth: '400px'
+  },
+  
+  startButton: {
+    background: 'linear-gradient(135deg, #3b82f6, #1e40af)',
+    color: 'white',
+    border: 'none',
+    padding: '14px 32px',
+    borderRadius: '12px',
+    fontSize: '16px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'transform 0.2s ease'
+  },
+  
+  header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '32px',
+    flexWrap: 'wrap',
+    gap: '16px'
+  },
+  
+  title: {
+    fontSize: '32px',
+    fontWeight: '800',
+    color: '#0f172a',
+    margin: 0
+  },
+  
+  subtitle: {
+    fontSize: '16px',
+    color: '#64748b',
+    marginTop: '8px'
+  },
+  
+  filterContainer: {
+    display: 'flex',
+    gap: '8px',
+    background: 'white',
+    padding: '4px',
+    borderRadius: '12px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+  },
+  
+  filterBtn: {
+    padding: '8px 16px',
+    border: 'none',
+    background: 'transparent',
+    color: '#64748b',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '500',
+    transition: 'all 0.2s ease'
+  },
+  
+  filterBtnActive: {
+    padding: '8px 16px',
+    border: 'none',
+    background: '#3b82f6',
+    color: 'white',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '600'
+  },
+  
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+    gap: '20px',
+    marginBottom: '24px'
+  },
+  
+  statCard: {
+    background: 'white',
+    borderRadius: '16px',
+    padding: '24px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    display: 'flex',
+    gap: '16px',
+    alignItems: 'flex-start'
+  },
+  
+  statIcon: {
+    width: '56px',
+    height: '56px',
+    borderRadius: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0
+  },
+  
+  statContent: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px'
+  },
+  
+  statLabel: {
+    fontSize: '13px',
+    color: '#64748b',
+    fontWeight: '500'
+  },
+  
+  statValue: {
+    fontSize: '28px',
+    fontWeight: '700',
+    lineHeight: 1
+  },
+  
+  statSubValue: {
+    fontSize: '13px',
+    color: '#64748b'
+  },
+  
+  trendBadge: {
+    display: 'inline-block',
+    padding: '4px 8px',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: '600',
+    marginTop: '4px'
+  },
+  
+  trendCard: {
+    borderRadius: '20px',
+    padding: '32px',
+    marginBottom: '24px',
+    color: 'white',
+    display: 'flex',
+    gap: '24px',
+    alignItems: 'center',
+    boxShadow: '0 10px 25px rgba(0,0,0,0.15)'
+  },
+  
+  trendIcon: {
+    fontSize: '48px',
+    flexShrink: 0
+  },
+  
+  trendContent: {
+    flex: 1
+  },
+  
+  trendTitle: {
+    fontSize: '24px',
+    fontWeight: '700',
+    marginBottom: '8px'
+  },
+  
+  trendText: {
+    fontSize: '15px',
+    opacity: 0.95,
+    marginBottom: '16px',
+    lineHeight: 1.5
+  },
+  
+  trendStats: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px'
+  },
+  
+  trendStatLabel: {
+    display: 'block',
+    fontSize: '12px',
+    opacity: 0.8,
+    marginBottom: '4px'
+  },
+  
+  trendStatValue: {
+    display: 'block',
+    fontSize: '20px',
+    fontWeight: '700'
+  },
+  
+  trendArrow: {
+    fontSize: '20px',
+    opacity: 0.8
+  },
+  
+  card: {
+    background: 'white',
+    borderRadius: '16px',
+    padding: '24px',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+    marginBottom: '24px'
+  },
+  
+  cardTitle: {
+    fontSize: '18px',
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: '20px'
+  },
+  
+  twoColumnGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+    gap: '20px',
+    marginBottom: '24px'
+  },
+  
+  problemLettersList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px'
+  },
+  
+  problemLetterItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px'
+  },
+  
+  letterBadge: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '12px',
+    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+    color: 'white',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '20px',
+    fontWeight: '700',
+    flexShrink: 0
+  },
+  
+  problemLetterInfo: {
+    flex: 1
+  },
+  
+  problemLetterCount: {
+    fontSize: '14px',
+    color: '#64748b',
+    display: 'block',
+    marginBottom: '6px'
+  },
+  
+  progressBarBg: {
+    height: '8px',
+    background: '#e2e8f0',
+    borderRadius: '4px',
+    overflow: 'hidden'
+  },
+  
+  progressBarFill: {
+    height: '100%',
+    borderRadius: '4px',
+    transition: 'width 0.3s ease'
+  },
+  
+  sentenceList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px'
+  },
+  
+  sentenceItem: {
+    padding: '16px',
+    background: '#f8fafc',
+    borderRadius: '12px',
+    borderLeft: '4px solid #f59e0b'
+  },
+  
+  sentenceText: {
+    fontSize: '14px',
+    color: '#0f172a',
+    marginBottom: '12px',
+    fontStyle: 'italic',
+    lineHeight: 1.6
+  },
+  
+  sentenceStats: {
+    display: 'flex',
+    gap: '16px'
+  },
+  
+  sentenceStat: {
+    fontSize: '13px',
+    color: '#64748b',
+    fontWeight: '500'
+  },
+  
+  feedbackCard: {
+    background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
+    borderRadius: '20px',
+    padding: '32px',
+    marginBottom: '24px',
+    border: '2px solid #bae6fd'
+  },
+  
+  feedbackTitle: {
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#0c4a6e',
+    marginBottom: '20px'
+  },
+  
+  feedbackMessages: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    marginBottom: '20px'
+  },
+  
+  feedbackMessage: {
+    fontSize: '15px',
+    color: '#0f172a',
+    lineHeight: 1.6,
+    padding: '12px 16px',
+    background: 'white',
+    borderRadius: '10px',
+    margin: 0
+  },
+  
+  motivationalBox: {
+    background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+    padding: '20px',
+    borderRadius: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+    marginBottom: '20px'
+  },
+  
+  quoteIcon: {
+    fontSize: '32px',
+    flexShrink: 0
+  },
+  
+  motivationalText: {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#78350f',
+    margin: 0
+  },
+  
+  recommendationsBox: {
+    background: 'white',
+    padding: '20px',
+    borderRadius: '12px'
+  },
+  
+  recommendationsTitle: {
+    fontSize: '15px',
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: '12px',
+    marginTop: 0
+  },
+  
+  recommendationsList: {
+    margin: 0,
+    paddingLeft: '20px'
+  },
+  
+  recommendationItem: {
+    fontSize: '14px',
+    color: '#475569',
+    marginBottom: '8px',
+    lineHeight: 1.6
+  },
+  
+  chartContainer: {
+    padding: '20px 0'
+  },
+  
+  chartBars: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    gap: '12px',
+    height: '200px'
+  },
+  
+  chartBarWrapper: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '8px',
+    height: '100%'
+  },
+  
+  chartBar: {
+    width: '100%',
+    borderRadius: '8px 8px 0 0',
+    minHeight: '20px',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingTop: '8px',
+    transition: 'height 0.3s ease',
+    position: 'relative'
+  },
+  
+  chartBarLabel: {
+    fontSize: '11px',
+    fontWeight: '700',
+    color: 'white'
+  },
+  
+  chartDate: {
+    fontSize: '11px',
+    color: '#64748b',
+    fontWeight: '500',
+    textAlign: 'center'
+  },
+  
+  letterStrengthGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+    gap: '16px'
+  },
+  
+  letterStrengthItem: {
+    padding: '16px',
+    background: '#f8fafc',
+    borderRadius: '12px'
+  },
+  
+  letterStrengthHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '8px'
+  },
+  
+  letterStrengthLetter: {
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#0f172a'
+  },
+  
+  letterStrengthValue: {
+    fontSize: '16px',
+    fontWeight: '700',
+    color: '#3b82f6'
+  },
+  
+  letterStrengthAttempts: {
+    fontSize: '12px',
+    color: '#64748b',
+    display: 'block',
+    marginTop: '8px'
+  },
+  
+  ctaCard: {
+    background: 'linear-gradient(135deg, #1e40af, #3b82f6)',
+    borderRadius: '20px',
+    padding: '32px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    color: 'white',
+    flexWrap: 'wrap',
+    gap: '20px'
+  },
+  
+  ctaTitle: {
+    fontSize: '24px',
+    fontWeight: '700',
+    marginBottom: '8px',
+    marginTop: 0
+  },
+  
+  ctaText: {
+    fontSize: '15px',
+    opacity: 0.9,
+    margin: 0
+  },
+  
+  ctaButton: {
+    background: 'white',
+    color: '#1e40af',
+    border: 'none',
+    padding: '14px 28px',
+    borderRadius: '12px',
+    fontSize: '16px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+  }
+};
+
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  button:hover:not(:disabled) {
+    transform: translateY(-2px);
+  }
+  
+  button:disabled {
+    cursor: not-allowed;
+  }
+`;
+document.head.appendChild(styleSheet);
