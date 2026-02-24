@@ -1268,7 +1268,7 @@ export default function StudentDashboard() {
       title: "Letter Practice",
       desc: "Track how well you pronounce individual letters and sounds",
       color: "#f59e0b",
-      grad: "linear-gradient(135deg, #fef3c7, #fde68a)",
+      grad: "linear-gradient(135deg, #fef3c7, #ffffff)",
       border: "#fcd34d",
       route: "/student/report/letters",
      
@@ -1279,7 +1279,7 @@ export default function StudentDashboard() {
       title: "Word Practice",
       desc: "Review your two-letter word accuracy and problem words",
       color: "#8b5cf6",
-      grad: "linear-gradient(135deg, #ede9fe, #ddd6fe)",
+      grad: "linear-gradient(135deg, #ede9fe, #f3f2f7)",
       border: "#c4b5fd",
       route: "/student/report/words",
      
@@ -1290,7 +1290,7 @@ export default function StudentDashboard() {
       title: "Sentence Practice",
       desc: "Full sentence accuracy, problem phonemes and daily progress",
       color: "#3b82f6",
-      grad: "linear-gradient(135deg, #dbeafe, #bfdbfe)",
+      grad: "linear-gradient(135deg, #dbeafe, #ebeff4)",
       border: "#93c5fd",
       route: "/student/report/sentences",
       

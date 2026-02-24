@@ -377,7 +377,7 @@ export const getWordReport = async (req, res) => {
 
     // Trend
     let trend = { direction: "insufficient_data", change: 0, recentAccuracy: 0, previousAvg: 0 };
-    if (attempts.length >= 4) {
+    if (attempts.length >= 2) {
       const half = Math.floor(attempts.length / 2);
       const firstRate = attempts.slice(0, half).filter(a => a.wordCorrect).length / half;
       const secondRate = attempts.slice(half).filter(a => a.wordCorrect).length / (attempts.length - half);
@@ -499,7 +499,7 @@ export const getSentenceReport = async (req, res) => {
 
     // Trend
     let trend = { direction: "insufficient_data", change: 0, recentAccuracy: 0, previousAvg: 0 };
-    if (attempts.length >= 4) {
+    if (attempts.length >= 2) {
       const half = Math.floor(attempts.length / 2);
       const firstAvg = attempts.slice(0, half).reduce((s, a) => s + (a.sentenceAccuracy || 0), 0) / half;
       const secondAvg = attempts.slice(half).reduce((s, a) => s + (a.sentenceAccuracy || 0), 0) / (attempts.length - half);

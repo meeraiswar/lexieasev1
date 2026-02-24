@@ -246,7 +246,7 @@ export default function SentenceReport() {
           </div>
         )}
 
-        {metrics.difficultSentences?.length > 0 && (
+        {/* {metrics.difficultSentences?.length > 0 && (
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>📝 Challenging Sentences</h3>
             <div style={styles.sentenceList}>
@@ -261,7 +261,7 @@ export default function SentenceReport() {
               ))}
             </div>
           </div>
-        )}
+        )} */}
 
       </div>
 
