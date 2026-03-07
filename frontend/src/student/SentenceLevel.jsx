@@ -8,6 +8,11 @@ import {
   getSegmentMetrics,
   shutdownEyeTracking,
 } from "../utils/eyeTrackingController";
+import {
+  splitIntoSyllables,
+  getGoogleStylePronunciation,
+  speakSyllables,
+} from "../utils/syllabify";
 
 function SentenceLevel() {
   const [sentence, setSentence] = useState(null);
@@ -16,16 +21,19 @@ function SentenceLevel() {
   const [shownAt, setShownAt] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [selectedWord, setSelectedWord] = useState("");
+  const [selectedSyllables, setSelectedSyllables] = useState([]);
+  const [selectedPronunciation, setSelectedPronunciation] = useState("");
 
   const recognitionRef = useRef(null);
   const spokenRef = useRef("");
   const shouldSubmitRef = useRef(false);
-  
+
   const sentenceIdRef = useRef(null);
   const sentenceRef = useRef(null);
   const shownAtRef = useRef(null);
   const videoRef = useRef(null);
-  
+
   useEffect(() => {
     const interval = setInterval(() => {
       if (videoRef.current) {
@@ -95,6 +103,9 @@ function SentenceLevel() {
       setSentenceId(res.sentenceId);
       setFeedback(null);
       setSpoken("");
+      setSelectedWord("");
+      setSelectedSyllables([]);
+      setSelectedPronunciation("");
       spokenRef.current = "";
       startSegment();
       setShownAt(Date.now());
@@ -108,6 +119,13 @@ function SentenceLevel() {
     loadSentence();
   }, []);
 
+  const handleWordClick = async (clickedWord) => {
+    const syllableParts = await splitIntoSyllables(clickedWord);
+    setSelectedWord(clickedWord);
+    setSelectedSyllables(syllableParts);
+    setSelectedPronunciation(getGoogleStylePronunciation(syllableParts));
+  };
+
   /* =========================
      Audio Feedback
   ========================== */
@@ -120,12 +138,12 @@ function SentenceLevel() {
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    
+
     // Make it more enthusiastic
     utterance.rate = 1.0;
     utterance.pitch = 1.1;
     utterance.volume = 1.0;
-    
+
     window.speechSynthesis.speak(utterance);
   };
 
@@ -134,20 +152,26 @@ function SentenceLevel() {
   ========================== */
   const submitAttempt = async () => {
     console.log("📤 submitAttempt called");
-    
-    if (!sentenceIdRef.current || !sentenceRef.current || !spokenRef.current || !shownAtRef.current) {
+
+    if (
+      !sentenceIdRef.current ||
+      !sentenceRef.current ||
+      !spokenRef.current ||
+      !shownAtRef.current
+    ) {
       console.log("❌ Missing data, aborting submit");
       return;
     }
 
     endSegment();
-    
+
     const metrics = getSegmentMetrics();
     const responseTimeMs = Date.now() - shownAtRef.current;
-    
+
     let visionResult = { usable: false, score: 0, isHard: false };
 
-    if (responseTimeMs >= 2000) {  // sentences need longer threshold
+    if (responseTimeMs >= 2000) {
+      // sentences need longer threshold
       visionResult = computeVisualHesitationScore(metrics);
     }
 
@@ -168,7 +192,7 @@ function SentenceLevel() {
         visualScore: visionResult.score,
         visualIsHard: visionResult.isHard,
       };
-      
+
       console.log("📤 Sending to API:", payload);
 
       const res = await apiFetch("/api/sentences/attempt", {
@@ -187,7 +211,7 @@ function SentenceLevel() {
         ...res,
         displayMessage: feedbackMessage,
       });
-      
+
       speakFeedback(res);
 
       // 🔥 Load next sentence after delay
@@ -209,7 +233,7 @@ function SentenceLevel() {
   ========================== */
   useEffect(() => {
     console.log("🎙️ Setting up speech recognition (ONCE)");
-    
+
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -230,9 +254,11 @@ function SentenceLevel() {
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
       const confidence = event.results[0][0].confidence;
-      
-      console.log(`🎤 Heard: "${transcript}" (confidence: ${confidence.toFixed(2)})`);
-      
+
+      console.log(
+        `🎤 Heard: "${transcript}" (confidence: ${confidence.toFixed(2)})`,
+      );
+
       spokenRef.current = transcript;
       setSpoken(transcript);
     };
@@ -244,7 +270,9 @@ function SentenceLevel() {
     };
 
     recognition.onend = () => {
-      console.log(`🎙️ Recognition ended. hasTranscript: ${!!spokenRef.current}`);
+      console.log(
+        `🎙️ Recognition ended. hasTranscript: ${!!spokenRef.current}`,
+      );
       setIsRecording(false);
 
       // ✅ AUTO-SUBMIT if we have a transcript
@@ -285,7 +313,7 @@ function SentenceLevel() {
   ========================== */
   const startRecording = () => {
     console.log("▶️ START button clicked");
-    
+
     if (!recognitionRef.current) {
       console.log("❌ No recognition object");
       return;
@@ -309,7 +337,7 @@ function SentenceLevel() {
 
   const stopRecording = () => {
     console.log("⏹️ STOP button clicked");
-    
+
     if (!recognitionRef.current) {
       console.log("❌ No recognition object");
       return;
@@ -317,7 +345,7 @@ function SentenceLevel() {
 
     shouldSubmitRef.current = true;
     console.log("✅ Set shouldSubmit = true");
-    
+
     try {
       recognitionRef.current.stop();
       console.log("🎙️ Stopping recognition...");
@@ -346,8 +374,38 @@ function SentenceLevel() {
         <p style={styles.subtitle}>Read this sentence clearly</p>
 
         <div style={styles.sentenceWrap}>
-          <h1 style={styles.sentence}>{sentence}</h1>
+          <h1 style={styles.sentence}>
+            {(sentence || "").split(" ").map((w, i) => (
+              <span
+                key={`${w}-${i}`}
+                style={styles.wordChip}
+                onClick={() => handleWordClick(w)}
+              >
+                {w}{" "}
+              </span>
+            ))}
+          </h1>
         </div>
+        {selectedWord && (
+          <div style={styles.spokenCard}>
+            <span style={styles.label}>Word Breakdown</span>
+            <p style={styles.spokenText}>
+              <strong>{selectedWord}</strong>
+            </p>
+            <p style={styles.spokenText}>
+              Syllables: {selectedSyllables.join(" - ")}
+            </p>
+            <p style={styles.spokenText}>
+              Pronunciation: {selectedPronunciation}
+            </p>
+            <button
+              style={{ ...styles.stopBtn, marginTop: 10 }}
+              onClick={() => speakSyllables(selectedSyllables)}
+            >
+              Speak Syllables
+            </button>
+          </div>
+        )}
 
         <div style={styles.controls}>
           <button
@@ -443,6 +501,9 @@ const styles = {
     fontSize: 36,
     fontWeight: 800,
     lineHeight: 1.4,
+  },
+  wordChip: {
+    cursor: "pointer",
   },
   controls: {
     display: "flex",

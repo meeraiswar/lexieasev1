@@ -9,6 +9,7 @@ import letterRoutes from "./routes/letterRoutes.js";
 import sentenceRoutes from "./routes/sentenceRoutes.js";
 import wordRoutes from "./routes/wordRoutes.js";
 import twoLetterRoutes from "./routes/twoLetterRoutes.js";
+import syllableRoutes from "./routes/syllableRoutes.js";
 
 const app = express();
 
@@ -16,7 +17,7 @@ app.use(
   cors({
     origin: "http://localhost:5173",
     credentials: true,
-  })
+  }),
 );
 
 app.use(express.json());
@@ -34,8 +35,5 @@ app.use("/api/letters", letterRoutes);
 app.use("/api/sentences", sentenceRoutes);
 app.use("/api/words", wordRoutes);
 app.use("/api/twoletterwords", twoLetterRoutes);
-
-app.listen(5001, () => {
-  console.log("Server running on port 5001");
-});
+app.use("/api/syllables", syllableRoutes);
 export default app;

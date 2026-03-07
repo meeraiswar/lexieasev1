@@ -9,7 +9,16 @@ import {
   shutdownEyeTracking,
 } from "../utils/eyeTrackingController";
 
+import {
+  splitIntoSyllables,
+  getGoogleStylePronunciation,
+  speakSyllables,
+} from "../utils/syllabify";
+
 export default function WordLevel() {
+  const [syllables, setSyllables] = useState([]);
+  const [pronunciation, setPronunciation] = useState("");
+
   const [word, setWord] = useState(null);
   const [wordId, setWordId] = useState(null);
   const [spoken, setSpoken] = useState("");
@@ -53,6 +62,10 @@ export default function WordLevel() {
     const res = await apiFetch("/api/words/next");
     console.log("Loaded word: ", res.word);
     setWord(res.word);
+    const s = await splitIntoSyllables(res.word || "");
+    setSyllables(s);
+    setPronunciation(getGoogleStylePronunciation(s));
+
     setWordId(res.wordId);
     setFeedback(null);
     setSpoken("");
@@ -83,11 +96,13 @@ export default function WordLevel() {
       };
 
       mediaRecorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: chunksRef.current[0]?.type || 'audio/webm' });
+        const blob = new Blob(chunksRef.current, {
+          type: chunksRef.current[0]?.type || "audio/webm",
+        });
 
         // stop tracks
         try {
-          streamRef.current.getTracks().forEach(t => t.stop());
+          streamRef.current.getTracks().forEach((t) => t.stop());
         } catch (e) {}
 
         const currentWordId = wordId;
@@ -107,27 +122,32 @@ export default function WordLevel() {
         console.log("Response Time:", responseTimeMs);
         console.log("Samples:", metrics.samples);
         console.log("Fixation Count:", metrics.fixationCount);
-        console.log("Mean Fixation Duration:", metrics.meanFixationDuration.toFixed(2), "ms");
+        console.log(
+          "Mean Fixation Duration:",
+          metrics.meanFixationDuration.toFixed(2),
+          "ms",
+        );
         console.log("Visual Score:", visionResult.score.toFixed(3));
         console.log("Is Hard:", visionResult.isHard);
         console.log("====================");
 
-
-
         const form = new FormData();
-        form.append('audio', blob, 'speech.webm');
-        form.append('wordId', currentWordId);
-        form.append('expected', currentWord);
-        form.append('responseTimeMs', responseTimeMs);
+        form.append("audio", blob, "speech.webm");
+        form.append("wordId", currentWordId);
+        form.append("expected", currentWord);
+        form.append("responseTimeMs", responseTimeMs);
         form.append("visionUsable", visionResult.usable);
         form.append("visualScore", visionResult.score);
         form.append("visionHard", visionResult.isHard);
 
-        const res = await fetch('http://localhost:5001/api/words/attempt-audio', {
-          method: 'POST',
-          credentials: 'include',
-          body: form,
-        });
+        const res = await fetch(
+          "http://localhost:5001/api/words/attempt-audio",
+          {
+            method: "POST",
+            credentials: "include",
+            body: form,
+          },
+        );
 
         const data = await res.json();
         setFeedback(data);
@@ -140,8 +160,8 @@ export default function WordLevel() {
       mediaRecorder.start();
       setIsRecording(true);
     } catch (err) {
-      console.error('Recording start failed', err);
-      alert('Unable to access microphone');
+      console.error("Recording start failed", err);
+      alert("Unable to access microphone");
     }
   };
 
@@ -156,29 +176,29 @@ export default function WordLevel() {
   ========================== */
   if (!word) return <div style={styles.loading}>Loading…</div>;
   const speakFeedback = (feedback) => {
-  if (!("speechSynthesis" in window) || !feedback) return;
+    if (!("speechSynthesis" in window) || !feedback) return;
 
-  let text = "";
+    let text = "";
 
-  if (feedback.wordCorrect) {
-    text = "Excellent pronunciation. Well done!";
-  } else if (feedback.problemLetters?.length > 0) {
-    text = `Good attempt. Focus on the letters ${feedback.problemLetters.join(
-      ", "
-    )}.`;
-  } else {
-    text = "Good effort. Try again slowly and clearly.";
-  }
+    if (feedback.wordCorrect) {
+      text = "Excellent pronunciation. Well done!";
+    } else if (feedback.problemLetters?.length > 0) {
+      text = `Good attempt. Focus on the letters ${feedback.problemLetters.join(
+        ", ",
+      )}.`;
+    } else {
+      text = "Good effort. Try again slowly and clearly.";
+    }
 
-  window.speechSynthesis.cancel();
+    window.speechSynthesis.cancel();
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.9;
-  utterance.pitch = 1.05;
-  utterance.volume = 1;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.pitch = 1.05;
+    utterance.volume = 1;
 
-  window.speechSynthesis.speak(utterance);
-};
+    window.speechSynthesis.speak(utterance);
+  };
 
   return (
     <div style={styles.container}>
@@ -193,6 +213,21 @@ export default function WordLevel() {
         <h2 style={styles.title}>🗣️ Word Pronunciation</h2>
 
         <div style={styles.wordDisplay}>{word}</div>
+
+        {syllables.length > 0 && (
+          <p style={styles.syllables}>Syllables: {syllables.join(" - ")}</p>
+        )}
+        {pronunciation && (
+          <p style={styles.pronunciation}>Pronunciation: {pronunciation}</p>
+        )}
+        {syllables.length > 0 && (
+          <button
+            style={styles.primaryButton}
+            onClick={() => speakSyllables(syllables)}
+          >
+            Speak Syllables
+          </button>
+        )}
 
         <div style={styles.buttonRow}>
           <button
@@ -237,8 +272,7 @@ export default function WordLevel() {
 
             {feedback.problemLetters?.length > 0 && (
               <p style={styles.problem}>
-                Focus on:{" "}
-                <strong>{feedback.problemLetters.join(", ")}</strong>
+                Focus on: <strong>{feedback.problemLetters.join(", ")}</strong>
               </p>
             )}
           </div>
@@ -280,6 +314,17 @@ const styles = {
     fontWeight: 700,
     color: "#1e40af",
     margin: "30px 0",
+  },
+  syllables: {
+    fontSize: 20,
+    color: "#334155",
+    marginTop: -12,
+    marginBottom: 6,
+  },
+  pronunciation: {
+    fontSize: 16,
+    color: "#64748b",
+    marginBottom: 14,
   },
   buttonRow: {
     display: "flex",
