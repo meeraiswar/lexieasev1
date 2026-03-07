@@ -127,7 +127,7 @@ export const logSentenceAttempt = async (req, res) => {
   console.log("HIT /sentences/attempt", req.body);
   try {
     const studentId = req.user._id;
-    const { sentenceId, expected, spoken, responseTimeMs } = req.body;
+    const { sentenceId, expected, spoken, responseTimeMs, visualScore, visualIsHard } = req.body;
 
     if (!sentenceId || !expected || !spoken || responseTimeMs === undefined) {
       return res.status(400).json({
@@ -196,16 +196,22 @@ export const logSentenceAttempt = async (req, res) => {
 
     // Update SentenceState   
     const fluencyScore = Math.min(1, 3000 / responseTimeMs);
+    if (!visualScore) visualScore = 0;
+    const visionPenalty = visualScore * 0.2;
 
     const sentenceReward =
       0.6 * (sentenceCorrect ? 1 : 0) +
       0.4 * fluencyScore;
+
+    const finalReward = Math.max(0, sentenceReward - visionPenalty);
 
     console.log("REWARD DEBUG", {
     responseTimeMs,
     fluencyScore,
     sentenceCorrect,
     sentenceReward,
+    visualScore,
+    visualIsHard
   });
 
     await updateBanditState(sentenceState, sentenceReward);
