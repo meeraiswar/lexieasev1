@@ -355,6 +355,7 @@ import LetterState from "../models/LetterState.js";
 import { selectNextState } from "../src/bandit/selectNext.js";
 import { updateBanditState } from "../src/bandit/updateState.js";
 import { SENTENCES } from "../data/sentences.js";
+import { initializeAI } from "./Geminiletter.js";
 import SentenceAttempt from "../models/SentenceAttempt.js";
 
 
@@ -626,20 +627,72 @@ export const logSentenceAttempt = async (req, res) => {
   console.log("HIT /sentences/attempt", req.body);
   try {
     const studentId = req.user._id;
-    const { sentenceId, expected, spoken, responseTimeMs, visualIsHard } = req.body;
 
-    // FIX: was const { ..., visualScore } which crashes on reassign
-    let visualScore = Number(req.body.visualScore) || 0;
+    // Accept either JSON { spoken } OR an uploaded audio file (multipart/form-data)
+    let { sentenceId, expected, responseTimeMs, visualScore, visualIsHard } = req.body;
+    let spoken = req.body.spoken; // may be undefined when audio is uploaded
 
-    if (!sentenceId || !expected || !spoken || responseTimeMs === undefined) {
+    // If audio was uploaded, use Gemini to transcribe
+    if (req.file && !spoken) {
+      try {
+        const audioBuffer = req.file.buffer;
+        const base64Audio = audioBuffer.toString("base64");
+        const geminiAI = initializeAI();
+
+        const gResp = await geminiAI.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: req.file.mimetype || "audio/webm",
+                    data: base64Audio,
+                  },
+                },
+                {
+                  text:
+                    "Listen to this audio and transcribe ONLY the spoken sentence. Return only the text.",
+                },
+              ],
+            },
+          ],
+        });
+
+        spoken = (gResp?.text || "").toLowerCase().trim();
+      } catch (tErr) {
+        console.error("Gemini transcription failed (sentence):", tErr);
+        return res.status(500).json({
+          success: false,
+          message: "Gemini transcription failed",
+          error: tErr.message,
+        });
+      }
+    }
+
+    // Normalize numeric fields from multipart/form-data (strings)
+    responseTimeMs = Number(responseTimeMs);
+    visualScore = Number(visualScore) || 0;
+    visualIsHard = visualIsHard === "true" || visualIsHard === true;
+
+    if (!sentenceId || !expected || !spoken || responseTimeMs === undefined || Number.isNaN(responseTimeMs)) {
       return res.status(400).json({
         success: false,
         error: "Missing required fields",
       });
     }
 
-    const sentenceState = await SentenceState.findOne({ studentId, sentenceId });
-    console.log("ATTEMPT UPDATE", { sentenceId, expected, studentId });
+    // Verify active sentence
+    const sentenceState = await SentenceState.findOne({
+      studentId,
+      sentenceId,
+    });
+    console.log("ATTEMPT UPDATE", {
+      sentenceId,
+      expected,
+      studentId,
+    });
 
     if (!sentenceState) {
       return res.status(409).json({
@@ -751,12 +804,13 @@ export const logSentenceAttempt = async (req, res) => {
       visualIsHard: Boolean(visualIsHard),
     });
 
-    // ── Respond ──────────────────────────────────────────────────
+    // ── Respond ────────────────────────────────────────────────── (include Gemini transcript when available)
     return res.json({
       success: true,
       sentenceCorrect,
       sentenceAccuracy,
       problemLetters: Array.from(problemLetters),
+      transcript: spoken,
       message: sentenceCorrect
         ? "Good job! Keep going."
         : "Nice try! Focus on the highlighted sounds.",
