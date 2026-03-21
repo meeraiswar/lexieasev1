@@ -29,7 +29,7 @@ const sendTokenResponse = (user, res) => {
 
 export const register = async (req, res) => {
   try {
-    const { name, email, password, role, therapistId, guardianId, age } = req.body;
+    const { name, email, password, role, therapistId, guardianName, age } = req.body;
 
     const userExists = await User.findOne({ email });
     if (userExists) {
@@ -68,24 +68,32 @@ export const register = async (req, res) => {
         console.error("Error assigning therapist:", err);
       }
 
-      // guardian assignment
-      try {
-        if (guardianId) {
+      // guardian assignment via guardianName (no default guardian)
+      if (guardianName) {
+        try {
+          const guardian = await User.findOne({
+            role: "guardian",
+            name: { $regex: `^${guardianName.trim()}$`, $options: "i" },
+          });
+
+          if (!guardian) {
+            await User.findByIdAndDelete(user._id);
+            return res.status(400).json({ message: "Guardian not found. Enter a valid guardian name." });
+          }
+
+          const existingLink = await StudentGuardian.findOne({ guardianId: guardian._id });
+          if (existingLink) {
+            await User.findByIdAndDelete(user._id);
+            return res.status(400).json({ message: "This guardian is already linked to another student." });
+          }
+
           await StudentGuardian.create({
             studentId: user._id,
-            guardianId,
+            guardianId: guardian._id,
           });
-        } else {
-          const guardians = await User.find({ role: "guardian" }).select("_id");
-          if (guardians.length === 1) {
-            await StudentGuardian.create({
-              studentId: user._id,
-              guardianId: guardians[0]._id,
-            });
-          }
+        } catch (err) {
+          console.error("Error assigning guardian:", err);
         }
-      } catch (err) {
-        console.error("Error assigning guardian:", err);
       }
     }
 
