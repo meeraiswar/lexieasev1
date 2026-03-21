@@ -28,8 +28,8 @@ export default function TherapistDashboard() {
   };
 
   const filteredStudents = students.filter(student =>
-    student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (student.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (student.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
   const handleStudentClick = (studentId) => {
@@ -89,11 +89,11 @@ export default function TherapistDashboard() {
             >
               <div style={styles.cardHeader}>
                 <div style={styles.studentAvatar}>
-                  {student.name.charAt(0).toUpperCase()}
+                  {(student.name?.charAt(0) || '?').toUpperCase()}
                 </div>
                 <div style={styles.studentInfo}>
-                  <h3 style={styles.studentName}>{student.name}</h3>
-                  <p style={styles.studentEmail}>{student.email}</p>
+                  <h3 style={styles.studentName}>{student.name || 'Unknown Student'}</h3>
+                  <p style={styles.studentEmail}>{student.email || 'No email'}</p>
                   {student.age != null && (
                     <p style={styles.studentMeta}>Age: {student.age}</p>
                   )}
