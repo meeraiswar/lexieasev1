@@ -83,11 +83,11 @@ export default function GuardianStudentDetail() {
       setLoading(true);
       let url = "";
       if (reportType === "words") {
-        url = `/api/guardian/students/${studentId}/report/words`;
+        url = `/api/guardian/students/${studentId}/report/words?timeframe=${timeframe}`;
       } else if (reportType === "sentences") {
-        url = `/api/guardian/students/${studentId}/report/sentences`;
+        url = `/api/guardian/students/${studentId}/report/sentences?timeframe=${timeframe}`;
       } else if (reportType === "letters") {
-        url = `/api/guardian/students/${studentId}/report/letters`;
+        url = `/api/guardian/students/${studentId}/report/letters?timeframe=${timeframe}`;
       }
 
       if (url) {
@@ -492,60 +492,74 @@ export default function GuardianStudentDetail() {
             })()}
           </div>
 
-          {/* CTA */}
-          <div style={styles.ctaCard}>
-            <div>
-              <h3 style={styles.ctaTitle}>Keep it up! 🚀</h3>
-              <p style={styles.ctaText}>
-                {(reportData.letters || []).some(l=>parseFloat(l.strength)<0)
-                  ? `Focus on: ${(reportData.letters||[])
-                     .filter(l=>parseFloat(l.strength)<0)
-                     .slice(0,3)
-                     .map(l=>l.letter.toUpperCase()).join(", ")}`
-                  : "Great work! Keep practising to maintain your strength scores."}
-              </p>
-            </div>
-            <button style={styles.ctaButton} onClick={() => navigate("/student/letter-level") }>
-              Continue Practice
-            </button>
-          </div>
         </div>
       )}
 
-      {/* Words Report */}
+      {/* Words Report (guardian now matches student style) */}
       {selectedReport === "words" && reportData && (() => {
-        const m = deriveWordMetrics(reportData);
+        const twM = reportData.twoLetter;
+        const wdM = reportData.words;
+        const cmb = reportData.combined;
+
+        const combinedAttempts = cmb?.totalAttempts ?? ((twM?.overview?.totalAttempts ?? 0) + (wdM?.overview?.totalAttempts ?? 0));
+        const combinedCorrect = cmb?.correctAttempts ?? ((twM?.overview?.correctAttempts ?? 0) + (wdM?.overview?.correctAttempts ?? 0));
+        const combinedRate = cmb?.successRate ?? (combinedAttempts ? +((combinedCorrect / combinedAttempts) * 100).toFixed(1) : 0);
+        const avgRT = cmb?.avgResponseTime ?? (() => {
+          const rts = [twM?.overview?.avgResponseTime, wdM?.overview?.avgResponseTime].filter(Boolean);
+          return rts.length ? rts.reduce((a, b) => a + b, 0) / rts.length : 0;
+        })();
+
+        const twoRate = twM?.overview?.successRate || 0;
+        const wordRate = wdM?.overview?.successRate || 0;
+        const similarTrend = cmb?.trend || twM?.trend || wdM?.trend;
+
+        const allProblemWords = [...(twM?.problemWords || []), ...(wdM?.problemWords || [])].slice(0, 6);
+        const allProblemLetters = [...(twM?.problemLetters || []), ...(wdM?.problemLetters || [])].slice(0, 6);
+
+        const allWordsPracticed = [
+          ...((twM?.allWords || []).map(w => ({ ...w, level: "Two-Letter" }))),
+          ...((wdM?.allWords || []).map(w => ({ ...w, level: "Multi-Letter" }))),
+        ].sort((a, b) => parseFloat(b.avgResponseTime) - parseFloat(a.avgResponseTime));
+
         return (
           <div style={styles.reportSection}>
-            <h2 style={{...styles.reportTitle, borderBottomColor: currentColor}}>Words Report</h2>
-            <div style={styles.statsGrid}>
-              <StatCard icon="🎯" label="Success Rate" value={`${m.successRate}%`} trend={m.trend} color="#8b5cf6" />
-              <StatCard icon="⚡" label="Avg Response Time" value={`${(m.avgResponse/1000).toFixed(1)}s`} color="#f59e0b" />
-              <StatCard icon="✅" label="Total Attempts" value={m.total} subValue={`${m.correctAttempts} correct`} color="#10b981" />
-              {m.trend && <StatCard icon="📉" label="Trend" value={
-                m.trend.direction === 'improving' ? '↗ Improving' :
-                m.trend.direction === 'declining' ? '↘ Declining' : '→ Stable'
-              } color={
-                m.trend.direction === 'improving' ? '#10b981' :
-                m.trend.direction === 'declining' ? '#ef4444' : '#3b82f6'
-              } />}
+            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
+              <h2 style={styles.reportTitle}>🔡 Word Practice Report</h2>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[7, 30, 90].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setTimeframe(t)}
+                    style={timeframe === t ? styles.reportBtnActive("#10b981") : styles.reportBtn}
+                  >
+                    {t} Days
+                  </button>
+                ))}
+              </div>
             </div>
-            {m.trend && <TrendCard trend={m.trend} />}
 
+            <div style={styles.statsGrid}>
+              <StatCard icon="🎯" label="Combined Accuracy" value={`${combinedRate}%`} sub={`${combinedCorrect} of ${combinedAttempts} correct`} color="#6d28d9" />
+              <StatCard icon="⚡" label="Avg Response Time" value={avgRT > 0 ? `${(avgRT / 1000).toFixed(1)}s` : "—"} sub={avgRT > 0 ? (avgRT < 2000 ? "Within target ✓" : avgRT < 4000 ? "Mild delay ⚠" : "Significant delay ✗") : "No data"} color={avgRT < 2000 ? "#059669" : avgRT < 4000 ? "#d97706" : "#dc2626"} />
+              <StatCard icon="🔤" label="Two-Letter Rate" value={twoRate ? `${twoRate}%` : "—"} sub={twM?.overview?.totalAttempts ? `${twM.overview.totalAttempts} attempts` : "No sessions"} color="#0f766e" />
+              <StatCard icon="🔡" label="Multi-Letter Rate" value={wordRate ? `${wordRate}%` : "—"} sub={wdM?.overview?.totalAttempts ? `${wdM.overview.totalAttempts} attempts` : "No sessions"} color="#b45309" />
+            </div>
+
+            {/* no trend callout in guardian words */}
             <div style={styles.twoColumnGrid}>
-              {m.problemWords.length > 0 && (
+              {allProblemWords.length > 0 && (
                 <div style={styles.card}>
                   <h3 style={styles.cardTitle}>🔡 Problem Words</h3>
                   <div style={styles.problemList}>
-                    {m.problemWords.map((item, idx) => (
+                    {allProblemWords.map((item, idx) => (
                       <div key={idx} style={styles.problemItem}>
-                        <div style={{ ...styles.badge, background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}>
+                        <div style={{ ...styles.badge, background: "linear-gradient(135deg, #8b5cf6, #7c3aed)" }}>
                           {item.word.toUpperCase()}
                         </div>
                         <div style={styles.problemInfo}>
                           <span style={styles.problemCount}>{item.errorCount} errors</span>
                           <div style={styles.progressBarBg}>
-                            <div style={{ ...styles.progressBarFill, width: `${item.errorRate}%`, background: '#8b5cf6' }} />
+                            <div style={{ ...styles.progressBarFill, width: `${item.errorRate}%`, background: "#8b5cf6" }} />
                           </div>
                         </div>
                       </div>
@@ -554,19 +568,19 @@ export default function GuardianStudentDetail() {
                 </div>
               )}
 
-              {m.problemLetters.length > 0 && (
+              {allProblemLetters.length > 0 && (
                 <div style={styles.card}>
                   <h3 style={styles.cardTitle}>🔤 Problem Phonemes</h3>
                   <div style={styles.problemList}>
-                    {m.problemLetters.map((item, idx) => (
+                    {allProblemLetters.map((item, idx) => (
                       <div key={idx} style={styles.problemItem}>
-                        <div style={{ ...styles.badge, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
+                        <div style={{ ...styles.badge, background: "linear-gradient(135deg, #ef4444, #dc2626)" }}>
                           {item.letter.toUpperCase()}
                         </div>
                         <div style={styles.problemInfo}>
                           <span style={styles.problemCount}>{item.errorCount} errors</span>
                           <div style={styles.progressBarBg}>
-                            <div style={{ ...styles.progressBarFill, width: `${item.errorRate || 0}%`, background: '#ef4444' }} />
+                            <div style={{ ...styles.progressBarFill, width: `${item.errorRate || 0}%`, background: "#ef4444" }} />
                           </div>
                         </div>
                       </div>
@@ -576,18 +590,31 @@ export default function GuardianStudentDetail() {
               )}
             </div>
 
-            <div style={styles.ctaCard}>
-              <div>
-                <h3 style={styles.ctaTitle}>Keep it up! 🚀</h3>
-                <p style={styles.ctaText}>
-                  {m.problemWords.length > 0
-                    ? `Focus on: ${m.problemWords.slice(0,3).map(w=>w.word.toUpperCase()).join(", ")}`
-                    : "Great work! Keep practising to maintain your progress."}
-                </p>
-              </div>
-              <button style={styles.ctaButton} onClick={() => navigate("/student/word-level") }>
-                Continue Practice
-              </button>
+            <div style={styles.tableContainer}>
+              <table style={styles.table}>
+                <thead>
+                  <tr style={styles.tableHeader}>
+                    <th style={styles.tableCell}>Word</th>
+                    <th style={styles.tableCell}>Level</th>
+                    <th style={styles.tableCell}>Attempts</th>
+                    <th style={styles.tableCell}>Correct</th>
+                    <th style={styles.tableCell}>Accuracy</th>
+                    <th style={styles.tableCell}>Avg Response</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allWordsPracticed.slice(0, 25).map((item, idx) => (
+                    <tr key={idx} style={styles.tableRow}>
+                      <td style={styles.tableCell}>{item.word.toUpperCase()}</td>
+                      <td style={styles.tableCell}>{item.level}</td>
+                      <td style={styles.tableCell}>{item.totalAttempts}</td>
+                      <td style={styles.tableCell}>{item.correctCount}</td>
+                      <td style={styles.tableCell}>{item.successRate}%</td>
+                      <td style={styles.tableCell}>{(item.avgResponseTime / 1000).toFixed(2)}s</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         );
@@ -633,21 +660,6 @@ export default function GuardianStudentDetail() {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* CTA */}
-            <div style={styles.ctaCard}>
-              <div>
-                <h3 style={styles.ctaTitle}>Keep it up! 🚀</h3>
-                <p style={styles.ctaText}>
-                  {m.problemLetters.length > 0
-                    ? `Focus on: ${m.problemLetters.slice(0,3).map(l=>l.letter.toUpperCase()).join(", ")}`
-                    : "Great work! Keep practising to maintain your progress."}
-                </p>
-              </div>
-              <button style={styles.ctaButton} onClick={() => navigate("/student/sentence-level") }>
-                Continue Practice
-              </button>
             </div>
 
             {/* full attempt table for detail */}
