@@ -20,6 +20,34 @@ export default function TwoLetterLevel() {
     }
   }, []);
 
+  /* =========================
+     Speech feedback
+  ========================== */
+  const speakFeedback = (correct, score) => {
+    if (!("speechSynthesis" in window)) return;
+
+    let text;
+    if (correct) {
+      text =
+        score >= 90
+          ? "Excellent work! Congratulations."
+          : score >= 75
+          ? "Well done. You are very close."
+          : "Good job! Keep it up.";
+    } else {
+      text =
+        score >= 55
+          ? "Good effort. Relax and try again."
+          : "Don't worry. Take your time and keep trying.";
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.pitch = 1.05;
+    window.speechSynthesis.speak(utterance);
+  };
+
   const loadWord = async () => {
     try {
       const res = await fetch("http://localhost:5001/api/twoletterwords/next", {
@@ -118,6 +146,9 @@ export default function TwoLetterLevel() {
       setFeedback(data);
       setStatus("");
 
+      // Trigger speech feedback using wordCorrect and score from the response
+      speakFeedback(data.wordCorrect, data.score ?? (data.wordCorrect ? 80 : 40));
+
       setTimeout(() => {
         loadWord();
       }, 1500);
@@ -130,7 +161,7 @@ export default function TwoLetterLevel() {
   if (!word) return <div style={styles.loading}>Loading…</div>;
 
   const correct = feedback?.wordCorrect;
-  
+
   return (
     <>
       <style>{`

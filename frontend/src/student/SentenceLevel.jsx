@@ -141,7 +141,6 @@ function SentenceLevel() {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
 
-    // Make it more enthusiastic
     utterance.rate = 1.0;
     utterance.pitch = 1.1;
     utterance.volume = 1.0;
@@ -173,7 +172,6 @@ function SentenceLevel() {
     let visionResult = { usable: false, score: 0, isHard: false };
 
     if (responseTimeMs >= 2000) {
-      // sentences need longer threshold
       visionResult = computeVisualHesitationScore(metrics);
     }
 
@@ -204,7 +202,6 @@ function SentenceLevel() {
 
       console.log("✅ API Response:", res);
 
-      // Add varied feedback message
       const feedbackMessage = res.sentenceCorrect
         ? getSuccessFeedback()
         : getMotivatingFeedback();
@@ -216,7 +213,6 @@ function SentenceLevel() {
 
       speakFeedback(res);
 
-      // 🔥 Load next sentence after delay
       setTimeout(() => {
         console.log("⏭️ Loading next sentence...");
         loadSentence();
@@ -235,7 +231,6 @@ function SentenceLevel() {
   ========================== */
   useEffect(() => {
     return () => {
-      // cleanup any active stream
       try {
         streamRef.current?.getTracks()?.forEach((t) => t.stop());
       } catch (e) {}
@@ -314,6 +309,8 @@ function SentenceLevel() {
             spokenRef.current = data.transcript;
             setSpoken(data.transcript);
           }
+
+          speakFeedback(data); // ✅ Added: speak feedback after audio attempt
 
           setTimeout(() => loadSentence(), 1500);
         } catch (err) {
@@ -515,7 +512,7 @@ const styles = {
     borderRadius: 14,
     border: "1px solid #c7d2fe",
     background: "white",
-    cursor: "pointer",
+        cursor: "pointer",
     fontSize: 16,
     fontWeight: 600,
     transition: "all 0.2s ease",
