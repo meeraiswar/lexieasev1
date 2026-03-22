@@ -498,7 +498,7 @@ export default function WordLevel() {
         )}
         {syllables.length > 0 && (
           <button
-            style={styles.primaryButton}
+            style={{ ...styles.primaryButton, marginBottom: 24 }}
             onClick={() => speakSyllables(syllables)}
           >
             Speak Syllables

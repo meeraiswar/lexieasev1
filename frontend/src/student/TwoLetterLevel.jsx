@@ -339,13 +339,10 @@ const styles = {
     marginBottom: "8px",
   },
   wordDisplay: {
-    fontFamily: "'DM Sans', sans-serif",
-    fontSize: "120px",
-    fontWeight: 400,
+    fontSize: 64,
+    fontWeight: 700,
     color: "#1e40af",
-    margin: "28px 0",
-    letterSpacing: "0.05em",
-    lineHeight: 1,
+    margin: "30px 0",
   },
   buttonContainer: {
     display: "flex",

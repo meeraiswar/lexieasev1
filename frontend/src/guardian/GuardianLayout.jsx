@@ -36,7 +36,15 @@ export default function GuardianLayout() {
         </div>
 
         <div style={styles.userInfo}>
-          <span style={styles.userName}>{user?.name || "Guardian"}</span>
+          <div style={styles.roleBadge}>
+            <div style={styles.avatar}>
+              {user?.name ? user.name.charAt(0).toUpperCase() : "G"}
+            </div>
+            <div style={styles.roleText}>
+              <div style={styles.roleLabel}>GUARDIAN</div>
+              <div style={styles.userName}>{user?.name || "Guardian"}</div>
+            </div>
+          </div>
         </div>
 
         <button onClick={handleLogout} style={styles.logoutBtn}>
@@ -99,9 +107,37 @@ const styles = {
     alignItems: "center",
     gap: 12,
   },
+  roleBadge: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: "50%",
+    background: "#10b981",
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 700,
+    fontSize: 14,
+  },
+  roleText: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+  },
+  roleLabel: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.5px",
+  },
   userName: {
-    color: "#64748b",
-    fontWeight: 500,
+    color: "#1e293b",
+    fontWeight: 600,
     fontSize: 14,
   },
   logoutBtn: {

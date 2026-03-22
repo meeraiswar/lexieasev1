@@ -7,21 +7,19 @@ export default function Signup() {
     email: "",
     password: "",
     role: "student",
+    age: "",
     therapistId: "",
-    guardianId: "",
+    guardianName: "",
   });
   const [therapists, setTherapists] = useState([]);
-  const [guardians, setGuardians] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingTherapists, setLoadingTherapists] = useState(false);
-  const [loadingGuardians, setLoadingGuardians] = useState(false);
   const navigate = useNavigate();
 
-  // Fetch therapists and guardians on component mount
+  // Fetch therapists on component mount
   useEffect(() => {
     fetchTherapists();
-    fetchGuardians();
   }, []);
 
   const fetchTherapists = async () => {
@@ -39,21 +37,6 @@ export default function Signup() {
     }
   };
 
-  const fetchGuardians = async () => {
-    try {
-      setLoadingGuardians(true);
-      const response = await fetch("/api/auth/guardians");
-      const data = await response.json();
-      if (data.success) {
-        setGuardians(data.guardians || []);
-      }
-    } catch (err) {
-      console.error("Failed to fetch guardians:", err);
-    } finally {
-      setLoadingGuardians(false);
-    }
-  };
-
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -67,12 +50,11 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      // Send therapistId only if role is student and a therapist is selected
+      // Send therapistId and guardianName only if role is student
       const submitData = {
         ...formData,
-        // Only send therapistId or guardianId when student
         therapistId: formData.role === "student" ? formData.therapistId : undefined,
-        guardianId: formData.role === "student" ? formData.guardianId : undefined,
+        guardianName: formData.role === "student" ? formData.guardianName : undefined,
       };
 
       const response = await fetch("/api/auth/register", {
@@ -181,9 +163,7 @@ export default function Signup() {
           onChange={handleChange}
         >
           <option value="student">Student</option>
-          <option value="teacher">Teacher</option>
           <option value="therapist">Therapist</option>
-          <option value="parent">Parent</option>
           <option value="guardian">Guardian</option>
         </select>
 
@@ -213,26 +193,16 @@ export default function Signup() {
             </div>
 
             <div style={auth.therapistContainer}>
-              <label style={auth.label}>Select a Guardian (Optional)</label>
-              <select
-                name="guardianId"
-                style={auth.select}
-                value={formData.guardianId}
+              <label style={auth.label}>Guardian Name</label>
+              <input
+                type="text"
+                name="guardianName"
+                placeholder="Enter guardian name"
+                style={auth.input}
+                value={formData.guardianName}
                 onChange={handleChange}
-              >
-                <option value="">-- No guardian selected --</option>
-                {loadingGuardians ? (
-                  <option disabled>Loading guardians...</option>
-                ) : guardians.length > 0 ? (
-                  guardians.map((g) => (
-                    <option key={g._id} value={g._id}>
-                      {g.name} ({g.email})
-                    </option>
-                  ))
-                ) : (
-                  <option disabled>No guardians available</option>
-                )}
-              </select>
+                required
+              />
             </div>
           </>
         )}

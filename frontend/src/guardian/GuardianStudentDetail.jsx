@@ -83,11 +83,11 @@ export default function GuardianStudentDetail() {
       setLoading(true);
       let url = "";
       if (reportType === "words") {
-        url = `/api/guardian/students/${studentId}/report/words`;
+        url = `/api/guardian/students/${studentId}/report/words?timeframe=${timeframe}`;
       } else if (reportType === "sentences") {
-        url = `/api/guardian/students/${studentId}/report/sentences`;
+        url = `/api/guardian/students/${studentId}/report/sentences?timeframe=${timeframe}`;
       } else if (reportType === "letters") {
-        url = `/api/guardian/students/${studentId}/report/letters`;
+        url = `/api/guardian/students/${studentId}/report/letters?timeframe=${timeframe}`;
       }
 
       if (url) {
@@ -174,30 +174,52 @@ export default function GuardianStudentDetail() {
     const total = attempts.length;
     const correct = attempts.filter(a => a.correct).length;
     const successRate = total ? ((correct / total) * 100).toFixed(1) : 0;
-    const avgAccuracy = total
-      ? (
-          attempts.reduce((sum, a) => sum + (a.accuracy || 0), 0) / total
-        ).toFixed(1)
+    
+    // Calculate avg accuracy - safely handle missing values
+    const validAccuracies = attempts.filter(a => a.accuracy !== null && a.accuracy !== undefined && !isNaN(a.accuracy));
+    const avgAccuracy = validAccuracies.length > 0
+      ? (validAccuracies.reduce((sum, a) => sum + parseFloat(a.accuracy || 0), 0) / validAccuracies.length).toFixed(1)
       : 0;
+    
     const avgResponse = total
       ? (
           attempts.reduce((sum, a) => sum + (a.responseTime || 0), 0) / total
         ).toFixed(0)
       : 0;
     const trend = computeTrend(attempts);
-    // letters from incorrect sentences as problem phonemes
+    
+    // letters from incorrect sentences as problem phonemes - with error rate calculation
     const letterMap = {};
-    attempts.filter(a => !a.correct).forEach(a => {
+    const letterAttempts = {};
+    
+    attempts.forEach(a => {
       (a.sentence || "").split("").forEach(ch => {
         const l = ch.toLowerCase();
-        letterMap[l] = (letterMap[l] || 0) + 1;
+        if (!letterAttempts[l]) letterAttempts[l] = { total: 0, errors: 0 };
+        letterAttempts[l].total++;
+        if (!a.correct) {
+          letterMap[l] = (letterMap[l] || 0) + 1;
+          letterAttempts[l].errors++;
+        }
       });
     });
-    const problemLetters = Object.entries(letterMap).map(([letter, count]) => ({
-      letter,
-      errorCount: count,
-      errorRate: null,
-    }));
+    
+    const problemLetters = Object.entries(letterMap)
+      .map(([letter, errorCount]) => {
+        const letterTotal = letterAttempts[letter]?.total || 0;
+        const letterErrors = letterAttempts[letter]?.errors || 0;
+        const errorRate = letterTotal > 0 
+          ? parseFloat(((letterErrors / letterTotal) * 100).toFixed(1))
+          : 0;
+        
+        return {
+          letter,
+          errorCount,
+          errorRate,
+        };
+      })
+      .filter(o => o.errorCount > 0 && !isNaN(o.errorRate) && o.errorRate > 0) // Only show phonemes with actual errors and valid error rates
+      .sort((a, b) => b.errorRate - a.errorRate);
 
     return { total, successRate, avgAccuracy, avgResponse, trend, problemWords: [], problemLetters };
   };
@@ -492,60 +514,74 @@ export default function GuardianStudentDetail() {
             })()}
           </div>
 
-          {/* CTA */}
-          <div style={styles.ctaCard}>
-            <div>
-              <h3 style={styles.ctaTitle}>Keep it up! 🚀</h3>
-              <p style={styles.ctaText}>
-                {(reportData.letters || []).some(l=>parseFloat(l.strength)<0)
-                  ? `Focus on: ${(reportData.letters||[])
-                     .filter(l=>parseFloat(l.strength)<0)
-                     .slice(0,3)
-                     .map(l=>l.letter.toUpperCase()).join(", ")}`
-                  : "Great work! Keep practising to maintain your strength scores."}
-              </p>
-            </div>
-            <button style={styles.ctaButton} onClick={() => navigate("/student/letter-level") }>
-              Continue Practice
-            </button>
-          </div>
         </div>
       )}
 
-      {/* Words Report */}
+      {/* Words Report (guardian now matches student style) */}
       {selectedReport === "words" && reportData && (() => {
-        const m = deriveWordMetrics(reportData);
+        const twM = reportData.twoLetter;
+        const wdM = reportData.words;
+        const cmb = reportData.combined;
+
+        const combinedAttempts = cmb?.totalAttempts ?? ((twM?.overview?.totalAttempts ?? 0) + (wdM?.overview?.totalAttempts ?? 0));
+        const combinedCorrect = cmb?.correctAttempts ?? ((twM?.overview?.correctAttempts ?? 0) + (wdM?.overview?.correctAttempts ?? 0));
+        const combinedRate = cmb?.successRate ?? (combinedAttempts ? +((combinedCorrect / combinedAttempts) * 100).toFixed(1) : 0);
+        const avgRT = cmb?.avgResponseTime ?? (() => {
+          const rts = [twM?.overview?.avgResponseTime, wdM?.overview?.avgResponseTime].filter(Boolean);
+          return rts.length ? rts.reduce((a, b) => a + b, 0) / rts.length : 0;
+        })();
+
+        const twoRate = twM?.overview?.successRate || 0;
+        const wordRate = wdM?.overview?.successRate || 0;
+        const similarTrend = cmb?.trend || twM?.trend || wdM?.trend;
+
+        const allProblemWords = [...(twM?.problemWords || []), ...(wdM?.problemWords || [])].slice(0, 6);
+        const allProblemLetters = [...(twM?.problemLetters || []), ...(wdM?.problemLetters || [])].slice(0, 6);
+
+        const allWordsPracticed = [
+          ...((twM?.allWords || []).map(w => ({ ...w, level: "Two-Letter" }))),
+          ...((wdM?.allWords || []).map(w => ({ ...w, level: "Multi-Letter" }))),
+        ].sort((a, b) => parseFloat(b.avgResponseTime) - parseFloat(a.avgResponseTime));
+
         return (
           <div style={styles.reportSection}>
-            <h2 style={{...styles.reportTitle, borderBottomColor: currentColor}}>Words Report</h2>
-            <div style={styles.statsGrid}>
-              <StatCard icon="🎯" label="Success Rate" value={`${m.successRate}%`} trend={m.trend} color="#8b5cf6" />
-              <StatCard icon="⚡" label="Avg Response Time" value={`${(m.avgResponse/1000).toFixed(1)}s`} color="#f59e0b" />
-              <StatCard icon="✅" label="Total Attempts" value={m.total} subValue={`${m.correctAttempts} correct`} color="#10b981" />
-              {m.trend && <StatCard icon="📉" label="Trend" value={
-                m.trend.direction === 'improving' ? '↗ Improving' :
-                m.trend.direction === 'declining' ? '↘ Declining' : '→ Stable'
-              } color={
-                m.trend.direction === 'improving' ? '#10b981' :
-                m.trend.direction === 'declining' ? '#ef4444' : '#3b82f6'
-              } />}
+            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
+              <h2 style={styles.reportTitle}>🔡 Word Practice Report</h2>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[7, 30, 90].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setTimeframe(t)}
+                    style={timeframe === t ? styles.reportBtnActive("#10b981") : styles.reportBtn}
+                  >
+                    {t} Days
+                  </button>
+                ))}
+              </div>
             </div>
-            {m.trend && <TrendCard trend={m.trend} />}
 
+            <div style={styles.statsGrid}>
+              <StatCard icon="🎯" label="Combined Accuracy" value={`${combinedRate}%`} sub={`${combinedCorrect} of ${combinedAttempts} correct`} color="#6d28d9" />
+              <StatCard icon="⚡" label="Avg Response Time" value={avgRT > 0 ? `${(avgRT / 1000).toFixed(1)}s` : "—"} sub={avgRT > 0 ? (avgRT < 2000 ? "Within target ✓" : avgRT < 4000 ? "Mild delay ⚠" : "Significant delay ✗") : "No data"} color={avgRT < 2000 ? "#059669" : avgRT < 4000 ? "#d97706" : "#dc2626"} />
+              <StatCard icon="🔤" label="Two-Letter Rate" value={twoRate ? `${twoRate}%` : "—"} sub={twM?.overview?.totalAttempts ? `${twM.overview.totalAttempts} attempts` : "No sessions"} color="#0f766e" />
+              <StatCard icon="🔡" label="Multi-Letter Rate" value={wordRate ? `${wordRate}%` : "—"} sub={wdM?.overview?.totalAttempts ? `${wdM.overview.totalAttempts} attempts` : "No sessions"} color="#b45309" />
+            </div>
+
+            {/* no trend callout in guardian words */}
             <div style={styles.twoColumnGrid}>
-              {m.problemWords.length > 0 && (
+              {allProblemWords.length > 0 && (
                 <div style={styles.card}>
                   <h3 style={styles.cardTitle}>🔡 Problem Words</h3>
                   <div style={styles.problemList}>
-                    {m.problemWords.map((item, idx) => (
+                    {allProblemWords.map((item, idx) => (
                       <div key={idx} style={styles.problemItem}>
-                        <div style={{ ...styles.badge, background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}>
+                        <div style={{ ...styles.badge, background: "linear-gradient(135deg, #8b5cf6, #7c3aed)" }}>
                           {item.word.toUpperCase()}
                         </div>
                         <div style={styles.problemInfo}>
                           <span style={styles.problemCount}>{item.errorCount} errors</span>
                           <div style={styles.progressBarBg}>
-                            <div style={{ ...styles.progressBarFill, width: `${item.errorRate}%`, background: '#8b5cf6' }} />
+                            <div style={{ ...styles.progressBarFill, width: `${item.errorRate}%`, background: "#8b5cf6" }} />
                           </div>
                         </div>
                       </div>
@@ -554,19 +590,19 @@ export default function GuardianStudentDetail() {
                 </div>
               )}
 
-              {m.problemLetters.length > 0 && (
+              {allProblemLetters.length > 0 && (
                 <div style={styles.card}>
                   <h3 style={styles.cardTitle}>🔤 Problem Phonemes</h3>
                   <div style={styles.problemList}>
-                    {m.problemLetters.map((item, idx) => (
+                    {allProblemLetters.map((item, idx) => (
                       <div key={idx} style={styles.problemItem}>
-                        <div style={{ ...styles.badge, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
+                        <div style={{ ...styles.badge, background: "linear-gradient(135deg, #ef4444, #dc2626)" }}>
                           {item.letter.toUpperCase()}
                         </div>
                         <div style={styles.problemInfo}>
                           <span style={styles.problemCount}>{item.errorCount} errors</span>
                           <div style={styles.progressBarBg}>
-                            <div style={{ ...styles.progressBarFill, width: `${item.errorRate || 0}%`, background: '#ef4444' }} />
+                            <div style={{ ...styles.progressBarFill, width: `${item.errorRate || 0}%`, background: "#ef4444" }} />
                           </div>
                         </div>
                       </div>
@@ -576,18 +612,31 @@ export default function GuardianStudentDetail() {
               )}
             </div>
 
-            <div style={styles.ctaCard}>
-              <div>
-                <h3 style={styles.ctaTitle}>Keep it up! 🚀</h3>
-                <p style={styles.ctaText}>
-                  {m.problemWords.length > 0
-                    ? `Focus on: ${m.problemWords.slice(0,3).map(w=>w.word.toUpperCase()).join(", ")}`
-                    : "Great work! Keep practising to maintain your progress."}
-                </p>
-              </div>
-              <button style={styles.ctaButton} onClick={() => navigate("/student/word-level") }>
-                Continue Practice
-              </button>
+            <div style={styles.tableContainer}>
+              <table style={styles.table}>
+                <thead>
+                  <tr style={styles.tableHeader}>
+                    <th style={styles.tableCell}>Word</th>
+                    <th style={styles.tableCell}>Level</th>
+                    <th style={styles.tableCell}>Attempts</th>
+                    <th style={styles.tableCell}>Correct</th>
+                    <th style={styles.tableCell}>Accuracy</th>
+                    <th style={styles.tableCell}>Avg Response</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allWordsPracticed.slice(0, 25).map((item, idx) => (
+                    <tr key={idx} style={styles.tableRow}>
+                      <td style={styles.tableCell}>{item.word.toUpperCase()}</td>
+                      <td style={styles.tableCell}>{item.level}</td>
+                      <td style={styles.tableCell}>{item.totalAttempts}</td>
+                      <td style={styles.tableCell}>{item.correctCount}</td>
+                      <td style={styles.tableCell}>{item.successRate}%</td>
+                      <td style={styles.tableCell}>{(item.avgResponseTime / 1000).toFixed(2)}s</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         );
@@ -596,6 +645,41 @@ export default function GuardianStudentDetail() {
       {/* Sentences Report */}
       {selectedReport === "sentences" && reportData && (() => {
         const m = deriveSentenceMetrics(reportData);
+        
+        // Calculate sentence-level metrics from attempts
+        const sentenceMetrics = {};
+        (reportData.attempts || []).forEach(attempt => {
+          const sent = attempt.sentence || '';
+          if (!sentenceMetrics[sent]) {
+            sentenceMetrics[sent] = {
+              sentence: sent,
+              attempts: 0,
+              correct: 0,
+              totalTime: 0,
+              totalAccuracy: 0,
+              eyeScores: [],
+            };
+          }
+          sentenceMetrics[sent].attempts++;
+          if (attempt.correct) sentenceMetrics[sent].correct++;
+          sentenceMetrics[sent].totalTime += attempt.responseTime || 0;
+          sentenceMetrics[sent].totalAccuracy += attempt.accuracy || 0;
+          if (attempt.eyeScore) sentenceMetrics[sent].eyeScores.push(attempt.eyeScore);
+        });
+
+        // Calculate averages and sort by success rate
+        const difficultSentences = Object.values(sentenceMetrics)
+          .map(s => ({
+            ...s,
+            successRate: ((s.correct / s.attempts) * 100).toFixed(1),
+            avgTime: s.attempts > 0 ? s.totalTime / s.attempts : 0,
+            avgVisual: s.eyeScores.length > 0 
+              ? (s.eyeScores.reduce((a, b) => a + b, 0) / s.eyeScores.length).toFixed(2)
+              : '0.00',
+          }))
+          .sort((a, b) => parseFloat(a.successRate) - parseFloat(b.successRate))
+          .slice(0, 10); // Show top 10 most challenging
+
         return (
           <div style={styles.reportSection}>
             <h2 style={{...styles.reportTitle, borderBottomColor: currentColor}}>Sentences Report</h2>
@@ -611,78 +695,63 @@ export default function GuardianStudentDetail() {
             {/* trend card */}
             {m.trend && <TrendCard trend={m.trend} />}
 
-            {/* problems */}
-            <div style={styles.twoColumnGrid}>
-              {m.problemLetters.length > 0 && (
-                <div style={styles.card}>
-                  <h3 style={styles.cardTitle}>🔤 Problem Phonemes</h3>
-                  <div style={styles.problemList}>
-                    {m.problemLetters.map((item, idx) => (
-                      <div key={idx} style={styles.problemItem}>
-                        <div style={{ ...styles.badge, background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
-                          {item.letter.toUpperCase()}
+            {/* Challenging Sentences */}
+            {difficultSentences.length > 0 && (
+              <div style={styles.card}>
+                <h3 style={styles.cardTitle}><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#f59e0b', marginRight: 8 }} /> Challenging Sentences</h3>
+                <p style={styles.cardHint}>Sentences with lowest success rate this period — prioritise re-practice</p>
+                <div style={styles.sentenceList}>
+                  {difficultSentences.map((item, idx) => (
+                    <div key={idx} style={styles.sentRow}>
+                      <div style={{ ...styles.rankBadge, background: idx === 0 ? '#ef4444' : idx === 1 ? '#f59e0b' : '#94a3b8' }}>
+                        #{idx + 1}
+                      </div>
+                      <div style={styles.sentMid}>
+                        <div style={styles.sentText}>"{item.sentence}"</div>
+                        <div style={styles.sentMeta}>
+                          <span style={{ ...styles.metaChip, background: `#f59e0b15`, color: '#b45309' }}>✓ {item.successRate}% success</span>
+                          <span style={{ ...styles.metaChip, background: '#f1f5f9', color: '#475569' }}>⏱ {(item.avgTime / 1000).toFixed(1)}s avg</span>
+                          <span style={{ ...styles.metaChip, background: '#dbeafe', color: '#1e40af' }}>👁 {item.avgVisual} eye score</span>
+                          <span style={{ ...styles.metaChip, background: '#ede9fe', color: '#7c3aed' }}>📋 {item.attempts} attempt{item.attempts !== 1 ? 's' : ''}</span>
                         </div>
-                        <div style={styles.problemInfo}>
-                          <span style={styles.problemCount}>{item.errorCount} errors</span>
-                          <div style={styles.progressBarBg}>
-                            <div style={{ ...styles.progressBarFill, width: `${item.errorRate || 0}%`, background: '#ef4444' }} />
-                          </div>
+                        <div style={styles.sentBar}>
+                          <div style={{ ...styles.sentFill, width: `${Math.min(parseFloat(item.successRate), 100)}%`, background: parseFloat(item.successRate) >= 80 ? '#059669' : parseFloat(item.successRate) >= 50 ? '#d97706' : '#dc2626' }} />
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* CTA */}
-            <div style={styles.ctaCard}>
-              <div>
-                <h3 style={styles.ctaTitle}>Keep it up! 🚀</h3>
-                <p style={styles.ctaText}>
-                  {m.problemLetters.length > 0
-                    ? `Focus on: ${m.problemLetters.slice(0,3).map(l=>l.letter.toUpperCase()).join(", ")}`
-                    : "Great work! Keep practising to maintain your progress."}
-                </p>
-              </div>
-              <button style={styles.ctaButton} onClick={() => navigate("/student/sentence-level") }>
-                Continue Practice
-              </button>
-            </div>
-
-            {/* full attempt table for detail */}
-            <div style={styles.tableContainer}>
-              <table style={styles.table}>
-                <thead>
-                  <tr style={styles.tableHeader}>
-                    <th style={styles.tableCell}>Sentence</th>
-                    <th style={styles.tableCell}>Spoken</th>
-                    <th style={styles.tableCell}>Correct</th>
-                    <th style={styles.tableCell}>Accuracy</th>
-                    <th style={styles.tableCell}>Response Time</th>
-                    <th style={styles.tableCell}>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportData.attempts?.slice(0, 20).map((attempt, idx) => (
-                    <tr key={idx} style={styles.tableRow}>
-                      <td style={{ ...styles.tableCell, maxWidth: "250px" }}>
-                        {attempt.sentence}
-                      </td>
-                      <td style={styles.tableCell}>{attempt.spoken || ""}</td>
-                      <td style={styles.tableCell}>
-                        {attempt.correct ? "✓" : "✗"}
-                      </td>
-                      <td style={styles.tableCell}>{attempt.accuracy}%</td>
-                      <td style={styles.tableCell}>{attempt.responseTime}ms</td>
-                      <td style={styles.tableCell}>
-                        {new Date(attempt.date).toLocaleDateString()}
-                      </td>
-                    </tr>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
+            )}
+
+            {/* Problem Phonemes - Box Grid */}
+            {m.problemLetters && m.problemLetters.length > 0 && (
+              <div style={styles.card}>
+                <h3 style={styles.cardTitle}><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#ef4444', marginRight: 8 }} /> Problem Phonemes</h3>
+                <p style={styles.cardHint}>Sounds producing most errors across all sentences</p>
+                <div style={styles.phonemeGrid}>
+                  {m.problemLetters
+                    .filter(item => item.errorCount > 0 && !isNaN(item.errorRate) && item.errorRate > 0)
+                    .map((item, idx) => {
+                    const colors = ["#ef4444", "#f59e0b", "#8b5cf6", "#3b82f6", "#10b981"];
+                    const c = colors[idx % colors.length];
+                    const errorRateValue = typeof item.errorRate === 'number' ? item.errorRate.toFixed(1) : (parseFloat(item.errorRate) || 0).toFixed(1);
+                    return (
+                      <div key={idx} style={{ ...styles.phonemeCard, borderTop: `3px solid ${c}` }}>
+                        <div style={{ ...styles.phonemeSymbol, color: c }}>{item.letter.toUpperCase()}</div>
+                        <div style={styles.phonemeStats}>
+                          <span style={styles.phonemeCount}>{item.errorCount} errors</span>
+                          <span style={{ ...styles.phonemePct, color: c }}>{errorRateValue}%</span>
+                        </div>
+                        <div style={styles.phonemeBar}>
+                          <div style={{ ...styles.phonemeFill, width: `${Math.min(parseFloat(errorRateValue), 100)}%`, background: c }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -1035,4 +1104,26 @@ const styles = {
   trendStatLabel: { display: "block", fontSize: "12px", opacity: 0.8, marginBottom: "4px" },
   trendStatValue: { display: "block", fontSize: "20px", fontWeight: "700" },
   trendArrow: { fontSize: "20px", opacity: 0.8 },
+  
+  /* Sentence display styles */
+  sentenceList: { display: "flex", flexDirection: "column", gap: "12px" },
+  sentRow: { display: "flex", gap: "14px", alignItems: "flex-start", padding: "14px 16px", background: "#f8fafc", borderRadius: "12px" },
+  rankBadge: { minWidth: "36px", height: "36px", borderRadius: "8px", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: "800", flexShrink: 0 },
+  sentMid: { flex: 1 },
+  sentText: { fontSize: "15px", fontWeight: "600", color: "#0f172a", fontStyle: "italic", marginBottom: "10px", lineHeight: 1.5 },
+  sentMeta: { display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "8px" },
+  metaChip: { fontSize: "11px", fontWeight: "700", padding: "3px 8px", borderRadius: "999px" },
+  sentBar: { height: "4px", background: "#e2e8f0", borderRadius: "2px", overflow: "hidden" },
+  sentFill: { height: "100%", borderRadius: "2px", transition: "width .4s ease" },
+  cardHint: { fontSize: "12px", color: "#94a3b8", margin: "0 0 16px 0" },
+  
+  /* Phoneme Grid Styles */
+  phonemeGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "12px" },
+  phonemeCard: { background: "#f8fafc", borderRadius: "12px", padding: "14px 16px", transition: "transform 0.15s" },
+  phonemeSymbol: { fontSize: "24px", fontWeight: "800", fontFamily: "'Fira Code', monospace", marginBottom: "8px" },
+  phonemeStats: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "6px" },
+  phonemeCount: { fontSize: "11px", color: "#64748b" },
+  phonemePct: { fontSize: "16px", fontWeight: "700", fontFamily: "'Fira Code', monospace" },
+  phonemeBar: { height: "5px", background: "#e2e8f0", borderRadius: "3px", overflow: "hidden" },
+  phonemeFill: { height: "100%", borderRadius: "3px", transition: "width 0.3s ease" },
 };
