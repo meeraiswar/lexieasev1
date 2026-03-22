@@ -221,7 +221,24 @@ export default function GuardianStudentDetail() {
       .filter(o => o.errorCount > 0 && !isNaN(o.errorRate) && o.errorRate > 0) // Only show phonemes with actual errors and valid error rates
       .sort((a, b) => b.errorRate - a.errorRate);
 
-    return { total, successRate, avgAccuracy, avgResponse, trend, problemWords: [], problemLetters };
+    const defaultEyeTracking = {
+      tracked: 0,
+      avgVisualScore: "0.00",
+      hesitationLevel: "Unknown",
+      hardSessions: 0,
+      hardRate: "0.0",
+    };
+
+    return {
+      total,
+      successRate,
+      avgAccuracy,
+      avgResponse,
+      trend,
+      problemWords: [],
+      problemLetters,
+      eyeTracking: data.eyeTracking || defaultEyeTracking,
+    };
   };
 
   if (loading && !student) {
@@ -235,9 +252,6 @@ export default function GuardianStudentDetail() {
   if (error && !student) {
     return (
       <div style={styles.container}>
-        <button onClick={() => navigate("/guardian/dashboard")} style={styles.backBtn}>
-          ← Back to Dashboard
-        </button>
         <div style={styles.errorMessage}>{error}</div>
       </div>
     );
@@ -247,9 +261,6 @@ export default function GuardianStudentDetail() {
     <div style={styles.container}>
       {/* Header */}
       <div style={styles.header}>
-        <button onClick={() => navigate("/guardian/dashboard")} style={styles.backBtn}>
-          ← Back to Dashboard
-        </button>
         {student && (
           <div style={styles.studentHeader}>
             <div style={styles.avatarLarge}>
@@ -694,6 +705,85 @@ export default function GuardianStudentDetail() {
 
             {/* trend card */}
             {m.trend && <TrendCard trend={m.trend} />}
+
+            {/* Eye-Tracking Analysis */}
+            {reportData.eyeTracking && (
+              <div style={{ ...styles.card, border: "2px solid #bfdbfe" }}>
+                <h3 style={styles.cardTitle}>Eye-Tracking Analysis</h3>
+                <p style={styles.cardHint}>Visual hesitation and tracking performance during sentence practice.</p>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "12px", marginBottom: "16px" }}>
+                  <StatCard
+                    icon="📷"
+                    label="Sessions Tracked"
+                    value={reportData.eyeTracking.tracked}
+                    subValue={`${((reportData.eyeTracking.tracked / (reportData.attempts?.length || 1)) * 100).toFixed(0)}% of total`}
+                    color="#3b82f6"
+                  />
+                  <StatCard
+                    icon="⏸️"
+                    label="Avg Visual Hesitation"
+                    value={reportData.eyeTracking.avgVisualScore}
+                    subValue={`${reportData.eyeTracking.hesitationLevel} level`}
+                    color={
+                      reportData.eyeTracking.hesitationLevel === "High"
+                        ? "#dc2626"
+                        : reportData.eyeTracking.hesitationLevel === "Moderate"
+                        ? "#d97706"
+                        : "#059669"
+                    }
+                  />
+                  <StatCard
+                    icon="🚨"
+                    label="Hard Sessions"
+                    value={reportData.eyeTracking.hardSessions}
+                    subValue={`${reportData.eyeTracking.hardRate}% flagged`}
+                    color={parseInt(reportData.eyeTracking.hardSessions, 10) > 0 ? "#dc2626" : "#059669"}
+                  />
+                  <StatCard
+                    icon="✅"
+                    label="Easy Sessions"
+                    value={(reportData.attempts?.length || 0) - (reportData.eyeTracking.hardSessions || 0)}
+                    subValue="Visually comfortable"
+                    color="#059669"
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+                  {[
+                    { label: "Low", range: "0.0 – 0.3", desc: "Smooth eye flow", color: "#059669" },
+                    { label: "Moderate", range: "0.3 – 0.6", desc: "Some pausing", color: "#d97706" },
+                    { label: "High", range: "0.6 – 1.0", desc: "Frequent re-fixation", color: "#dc2626" },
+                  ].map((zone) => (
+                    <div
+                      key={zone.label}
+                      style={{
+                        background: reportData.eyeTracking.hesitationLevel === zone.label ? `${zone.color}10` : "#f8fafc",
+                        border: `1px solid #e2e8f0`,
+                        borderTop: `3px solid ${zone.color}`,
+                        borderRadius: "10px",
+                        padding: "10px",
+                      }}
+                    >
+                      <div style={{ fontSize: 11, fontWeight: 700, color: zone.color, textTransform: "uppercase" }}>{zone.label}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, margin: "4px 0" }}>{zone.range}</div>
+                      <div style={{ fontSize: 12, color: "#64748b" }}>{zone.desc}</div>
+                      {reportData.eyeTracking.hesitationLevel === zone.label && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: zone.color, fontWeight: 700 }}>
+                          ← You are here
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {reportData.eyeTracking.tracked === 0 && (
+                  <div style={{ textAlign: "center", padding: "20px 0", color: "#64748b" }}>
+                    No eye-tracking data available for this period. Enable camera during sessions to see visual hesitation insights.
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Challenging Sentences */}
             {difficultSentences.length > 0 && (

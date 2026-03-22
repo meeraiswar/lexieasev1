@@ -330,7 +330,14 @@ export const getStudentSentenceReport = async (req, res) => {
           correct: 0,
           successRate: 0,
           avgAccuracy: 0,
-          attempts: []
+          attempts: [],
+          eyeTracking: {
+            tracked: 0,
+            avgVisualScore: "0.000",
+            hesitationLevel: "Low",
+            hardSessions: 0,
+            hardRate: "0.0"
+          }
         }
       });
     }
@@ -339,6 +346,15 @@ export const getStudentSentenceReport = async (req, res) => {
     const correct = attempts.filter(a => a.sentenceCorrect).length;
     const avgAccuracy =
       attempts.reduce((sum, a) => sum + (a.sentenceAccuracy || 0), 0) / total;
+
+    // Calculate eye tracking metrics
+    const eyeAttempts = attempts.filter(a => a.visualScore > 0);
+    const avgVisual = eyeAttempts.length
+      ? eyeAttempts.reduce((s, a) => s + (a.visualScore || 0), 0) / eyeAttempts.length
+      : 0;
+    const hardCount = attempts.filter(a => a.visualIsHard).length;
+    const hesitationLevel =
+      avgVisual < 0.3 ? "Low" : avgVisual < 0.6 ? "Moderate" : "High";
 
     return res.json({
       success: true,
@@ -354,7 +370,14 @@ export const getStudentSentenceReport = async (req, res) => {
           accuracy: ((a.sentenceAccuracy || 0) * 100).toFixed(1),
           responseTime: a.responseTimeMs,
           date: a.createdAt
-        }))
+        })),
+        eyeTracking: {
+          tracked: eyeAttempts.length,
+          avgVisualScore: avgVisual.toFixed(3),
+          hesitationLevel,
+          hardSessions: hardCount,
+          hardRate: total > 0 ? ((hardCount / total) * 100).toFixed(1) : "0.0"
+        }
       }
     });
   } catch (err) {

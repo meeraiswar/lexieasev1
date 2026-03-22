@@ -297,6 +297,15 @@ export const getStudentSentenceReport = async (req, res) => {
     const avgAccuracy =
       attempts.reduce((sum, a) => sum + (a.sentenceAccuracy || 0), 0) / total;
 
+    const eyeAttempts = attempts.filter(a => (a.visualScore || 0) > 0);
+    const avgVisual = eyeAttempts.length
+      ? eyeAttempts.reduce((s, a) => s + (a.visualScore || 0), 0) / eyeAttempts.length
+      : 0;
+    const hardCount = attempts.filter(a => a.visualIsHard).length;
+    const eyeTracked = eyeAttempts.length;
+    const hesitationLevel =
+      avgVisual < 0.3 ? "Low" : avgVisual < 0.6 ? "Moderate" : "High";
+
     return res.json({
       success: true,
       data: {
@@ -310,8 +319,17 @@ export const getStudentSentenceReport = async (req, res) => {
           correct: a.sentenceCorrect,
           accuracy: ((a.sentenceAccuracy || 0) * 100).toFixed(1),
           responseTime: a.responseTimeMs,
-          date: a.createdAt
-        }))
+          date: a.createdAt,
+          eyeScore: a.visualScore || 0,
+          visualIsHard: !!a.visualIsHard,
+        })),
+        eyeTracking: {
+          tracked: eyeTracked,
+          avgVisualScore: avgVisual.toFixed(3),
+          hesitationLevel,
+          hardSessions: hardCount,
+          hardRate: total > 0 ? ((hardCount / total) * 100).toFixed(1) : "0.0",
+        }
       }
     });
   } catch (err) {
