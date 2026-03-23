@@ -1769,6 +1769,222 @@ export default function TherapistStudentDetail() {
             </div>
           </div>
 
+          {/* Eye-Tracking Analysis Section */}
+          {reportData?.eyeTracking && (
+            <div style={{
+              background: "white",
+              borderRadius: 18,
+              padding: "28px 30px",
+              marginBottom: 20,
+              boxShadow: "0 2px 12px rgba(0,0,0,.08)",
+              border: "2px solid #bfdbfe"
+            }}>
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                marginBottom: 24,
+                flexWrap: "wrap",
+                gap: 12
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <div style={{ fontSize: 42, flexShrink: 0 }}>👁️</div>
+                  <div>
+                    <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", margin: "0 0 4px" }}>
+                      Eye-Tracking Analysis
+                    </h2>
+                    <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>
+                      Visual hesitation measured during sentence reading
+                    </p>
+                  </div>
+                </div>
+                {reportData.eyeTracking.tracked > 0 && (
+                  <div style={{
+                    padding: "8px 18px",
+                    borderRadius: 999,
+                    fontSize: 14,
+                    fontWeight: 800,
+                    whiteSpace: "nowrap",
+                    background:
+                      reportData.eyeTracking.hesitationLevel === "High"
+                        ? "rgba(220, 38, 38, 0.1)"
+                        : reportData.eyeTracking.hesitationLevel === "Moderate"
+                        ? "rgba(217, 119, 6, 0.1)"
+                        : "rgba(5, 150, 105, 0.1)",
+                    color:
+                      reportData.eyeTracking.hesitationLevel === "High"
+                        ? "#dc2626"
+                        : reportData.eyeTracking.hesitationLevel === "Moderate"
+                        ? "#d97706"
+                        : "#059669",
+                    border:
+                      reportData.eyeTracking.hesitationLevel === "High"
+                        ? "2px solid rgba(220, 38, 38, 0.25)"
+                        : reportData.eyeTracking.hesitationLevel === "Moderate"
+                        ? "2px solid rgba(217, 119, 6, 0.25)"
+                        : "2px solid rgba(5, 150, 105, 0.25)",
+                  }}>
+                    {reportData.eyeTracking.hesitationLevel} Hesitation
+                  </div>
+                )}
+              </div>
+
+              {reportData.eyeTracking.tracked > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                  {/* Gauge + Stats Row */}
+                  <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+                    {/* Gauge */}
+                    <TherapistHesitationGauge
+                      score={parseFloat(reportData.eyeTracking.avgVisualScore)}
+                      level={reportData.eyeTracking.hesitationLevel}
+                    />
+                    {/* Stats Grid */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 12, flex: 1 }}>
+                      <TherapistEyeStatBox
+                        icon="📷"
+                        label="Sessions Tracked"
+                        value={reportData.eyeTracking.tracked}
+                        sub={`${((reportData.eyeTracking.tracked / (reportData.attempts?.length || 1)) * 100).toFixed(0)}% of total sessions`}
+                        color="#3b82f6"
+                      />
+                      <TherapistEyeStatBox
+                        icon="⏸️"
+                        label="Avg Hesitation"
+                        value={reportData.eyeTracking.avgVisualScore}
+                        sub={`${reportData.eyeTracking.hesitationLevel} level`}
+                        color={
+                          reportData.eyeTracking.hesitationLevel === "High"
+                            ? "#dc2626"
+                            : reportData.eyeTracking.hesitationLevel === "Moderate"
+                            ? "#d97706"
+                            : "#059669"
+                        }
+                      />
+                      <TherapistEyeStatBox
+                        icon="🚨"
+                        label="Hard Sessions"
+                        value={reportData.eyeTracking.hardSessions}
+                        sub={`${reportData.eyeTracking.hardRate}% flagged as critical`}
+                        color={parseInt(reportData.eyeTracking.hardSessions) > 0 ? "#dc2626" : "#059669"}
+                      />
+                      <TherapistEyeStatBox
+                        icon="🎯"
+                        label="Easy Sessions"
+                        value={(reportData.attempts?.length || 0) - reportData.eyeTracking.hardSessions}
+                        sub="Visually comfortable"
+                        color="#059669"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Hesitation Zones */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+                    {[
+                      { label: "Low", range: "0.0 – 0.3", desc: "Smooth eye flow", color: "#059669" },
+                      { label: "Moderate", range: "0.3 – 0.6", desc: "Some pausing", color: "#d97706" },
+                      { label: "High", range: "0.6 – 1.0", desc: "Frequent re-fixation", color: "#dc2626" },
+                    ].map((z) => (
+                      <div
+                        key={z.label}
+                        style={{
+                          borderRadius: 12,
+                          padding: "14px 16px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 4,
+                          transition: "box-shadow .2s",
+                          borderTop: `3px solid ${z.color}`,
+                          background:
+                            reportData.eyeTracking.hesitationLevel === z.label
+                              ? `${z.color}10`
+                              : "#f8fafc",
+                          boxShadow:
+                            reportData.eyeTracking.hesitationLevel === z.label
+                              ? `0 0 0 2px ${z.color}40`
+                              : "none",
+                        }}
+                      >
+                        <span style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          color: z.color,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em"
+                        }}>
+                          {z.label}
+                        </span>
+                        <span style={{
+                          fontSize: 18,
+                          fontWeight: 800,
+                          fontFamily: "'Fira Code',monospace",
+                          color: "#0f172a"
+                        }}>
+                          {z.range}
+                        </span>
+                        <span style={{ fontSize: 12, color: "#64748b" }}>
+                          {z.desc}
+                        </span>
+                        {reportData.eyeTracking.hesitationLevel === z.label && (
+                          <span style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: z.color,
+                            marginTop: 2
+                          }}>
+                            ← You are here
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Clinical Insight */}
+                  <div style={{
+                    display: "flex",
+                    gap: 14,
+                    alignItems: "flex-start",
+                    background: "#eff6ff",
+                    borderRadius: 12,
+                    padding: "16px 20px",
+                    border: "1px solid #bfdbfe"
+                  }}>
+                    <span style={{ fontSize: 18 }}>💡</span>
+                    <p style={{ fontSize: 14, color: "#1e40af", lineHeight: 1.7, margin: 0 }}>
+                      {reportData.eyeTracking.hesitationLevel === "High"
+                        ? "High visual hesitation suggests difficulty tracking text. Practice smooth left-to-right eye movement and try using a finger or ruler to guide reading."
+                        : reportData.eyeTracking.hesitationLevel === "Moderate"
+                        ? "Moderate hesitation is common in early reading development. Increasing font size and reducing visual clutter can help improve tracking."
+                        : "Great visual tracking! Eyes are moving smoothly across sentences — this supports faster reading fluency."}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  textAlign: "center",
+                  padding: "40px 20px",
+                  gap: 12
+                }}>
+                  <span style={{ fontSize: 48 }}>📷</span>
+                  <h4 style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", margin: 0 }}>
+                    No Eye-Tracking Data Yet
+                  </h4>
+                  <p style={{
+                    fontSize: 14,
+                    color: "#64748b",
+                    maxWidth: 500,
+                    lineHeight: 1.7,
+                    margin: 0
+                  }}>
+                    Enable the camera during practice sessions to unlock visual hesitation analysis. Eye-tracking helps identify exactly where reading breaks down.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={styles.subSection}>
             <div style={styles.subTitle}>Sentence Performance Table</div>
             <div style={styles.tableContainer}>
@@ -1862,6 +2078,66 @@ function TherapistLetterStrengthGrid({ letters }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function TherapistEyeStatBox({ icon, label, value, sub, color }) {
+  return (
+    <div style={{ background: "white", borderRadius: 12, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 4, borderTop: `3px solid ${color}` }}>
+      <span style={{ fontSize: 22, marginBottom: 6 }}>{icon}</span>
+      <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
+      <span style={{ fontSize: 28, fontWeight: 800, color, fontFamily: "'Fira Code',monospace" }}>{value}</span>
+      <span style={{ fontSize: 12, color: "#64748b" }}>{sub}</span>
+    </div>
+  );
+}
+
+function TherapistHesitationGauge({ score, level }) {
+  const pct = Math.min(score * 100, 100);
+  const color = level === "Low" ? "#059669" : level === "Moderate" ? "#d97706" : "#dc2626";
+  const radius = 54;
+  const circ = 2 * Math.PI * radius;
+  const offset = circ - (pct / 100) * circ;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <svg width={140} height={140} viewBox="0 0 140 140">
+        <circle cx={70} cy={70} r={radius} fill="none" stroke="#f1f5f9" strokeWidth={12} />
+        <circle
+          cx={70}
+          cy={70}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={12}
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{
+            transformOrigin: "center",
+            transform: "rotate(-90deg)",
+            transition: "stroke-dashoffset .6s ease"
+          }}
+        />
+        <text
+          x={70}
+          y={64}
+          textAnchor="middle"
+          fontSize={20}
+          fontWeight={700}
+          fill={color}
+          fontFamily="'Fira Code',monospace"
+        >
+          {score.toFixed(2)}
+        </text>
+        <text x={70} y={82} textAnchor="middle" fontSize={11} fill="#64748b" fontWeight={600}>
+          {level}
+        </text>
+        <text x={70} y={96} textAnchor="middle" fontSize={9} fill="#94a3b8">
+          hesitation
+        </text>
+      </svg>
     </div>
   );
 }
