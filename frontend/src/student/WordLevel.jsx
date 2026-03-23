@@ -479,13 +479,13 @@ export default function WordLevel() {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <video
+        {/* <video
           ref={videoRef}
           autoPlay
           muted
           playsInline
           style={{ display: "none" }}
-        />
+        /> */}
         <h2 style={styles.title}>🗣️ Word Pronunciation</h2>
 
         <div style={styles.wordDisplay}>{word}</div>
